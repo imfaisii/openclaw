@@ -7,10 +7,8 @@ import {
   createDeferred,
   withinTest,
 } from "../../test/helpers/promise.js";
-import {
-  readAcpSessionMeta,
-  writeAcpSessionMetaForMigration,
-} from "../acp/runtime/session-meta.js";
+import { seedCanonicalAcpSessionMeta } from "../acp/runtime/session-meta-fixture.test-support.js";
+import { readAcpSessionMeta } from "../acp/runtime/session-meta.js";
 import { listRegisteredAgentHarnesses, registerAgentHarness } from "../agents/harness/registry.js";
 import { restoreRegisteredAgentHarnesses } from "../agents/harness/registry.test-support.js";
 import * as preparedModelRuntime from "../agents/prepared-model-runtime.js";
@@ -504,7 +502,7 @@ test("sessions.reset closes ACP runtime handles for ACP sessions", async () => {
       main: sessionStoreEntry("sess-main"),
     },
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:main",
     meta: resolvedAcpMeta({
       recordId: "agent:main:main",
@@ -567,7 +565,7 @@ test("sessions.reset finishes after lifecycle rotation during destructive cleanu
       main: sessionStoreEntry("sess-main"),
     },
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:main",
     lifecycleRevision: undefined,
     meta: resolvedAcpMeta({
@@ -711,7 +709,7 @@ test("sessions.reset preserves a newer session after lifecycle rotation", async 
       main: sessionStoreEntry("sess-main"),
     },
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:main",
     lifecycleRevision: undefined,
     meta: resolvedAcpMeta({
@@ -775,14 +773,14 @@ test("sessions.reset closes child ACP runtime handles spawned from the parent", 
       }),
     },
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:main",
     meta: resolvedAcpMeta({
       recordId: "agent:main:main",
       backendSessionId: "backend-session-main",
     }),
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:acp-child-1",
     meta: resolvedAcpMeta({
       recordId: "agent:main:acp-child-1",
@@ -792,7 +790,7 @@ test("sessions.reset closes child ACP runtime handles spawned from the parent", 
     }),
   });
   for (const child of ["acp-grandchild", "unrelated-acp-child"]) {
-    writeAcpSessionMetaForMigration({
+    seedCanonicalAcpSessionMeta({
       sessionKey: `agent:main:${child}`,
       meta: resolvedAcpMeta({
         recordId: `agent:main:${child}`,
@@ -850,7 +848,7 @@ test("sessions.reset closes a spawned ACP child that lives in a different agent 
     },
     storePath: codexStorePath,
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:main:main",
     meta: {
       backend: "acpx",
@@ -861,7 +859,7 @@ test("sessions.reset closes a spawned ACP child that lives in a different agent 
       lastActivityAt: Date.now(),
     },
   });
-  writeAcpSessionMetaForMigration({
+  seedCanonicalAcpSessionMeta({
     sessionKey: "agent:codex:acp:cross-store-child",
     meta: {
       backend: "acpx",
@@ -933,7 +931,7 @@ test("sessions.reset closes child ACP runtimes concurrently so stuck children do
     "agent:main:acp-child-2",
     "agent:main:acp-child-3",
   ]) {
-    writeAcpSessionMetaForMigration({
+    seedCanonicalAcpSessionMeta({
       sessionKey,
       meta: childAcp(sessionKey),
     });
