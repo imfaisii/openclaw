@@ -157,7 +157,11 @@ export function hasRequesterCompletionCohort(entry: SubagentRunRecord): boolean 
   );
 }
 
-/** A newer task cannot revoke another task's exact completion custody. */
+/**
+ * A newer task cannot revoke another task's exact completion custody. A
+ * yield-paused run holds no result, only its continuation: any newer execution
+ * of its session continues it, so the pause notice no longer owes a wake.
+ */
 export function isRequesterCompletionCohortCurrent(
   entry: SubagentRunRecord,
   latestForSession: (
@@ -167,14 +171,16 @@ export function isRequesterCompletionCohortCurrent(
   ) => SubagentRunRecord | null,
 ): boolean {
   const taskRunId = entry.taskRunId ?? entry.runId;
-  const task = latestForSession(
+  const owner = latestForSession(
     entry.childSessionKey,
-    (candidate) => (candidate.taskRunId ?? candidate.runId) === taskRunId,
+    entry.pauseReason === "sessions_yield"
+      ? undefined
+      : (candidate) => (candidate.taskRunId ?? candidate.runId) === taskRunId,
     entry.childAgentId,
   );
   return (
     entry.killReconciliation?.supersededAt === undefined &&
-    (!task || compareSubagentRunGeneration(task, entry) <= 0)
+    (!owner || compareSubagentRunGeneration(owner, entry) <= 0)
   );
 }
 
