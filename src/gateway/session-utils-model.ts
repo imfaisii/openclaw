@@ -266,13 +266,17 @@ export function getSessionDefaults(
     agentId?: string;
     modelRef?: ModelRef;
     allowPluginNormalization?: boolean;
-    metadataSnapshot?: PluginMetadataSnapshot;
+    metadataSnapshot?: PluginMetadataSnapshot | null;
     providerPolicySource?: ThinkingProviderPolicySource;
   },
 ): GatewaySessionsDefaults {
   const agentId = normalizeAgentId(
     options?.agentId ?? tryResolveLegacyCompatibilityAgentId(cfg) ?? LEGACY_IMPLICIT_AGENT_ID,
   );
+  const manifestPlugins = options?.metadataSnapshot === null ? [] : options?.metadataSnapshot;
+  const providerPolicySource =
+    options?.providerPolicySource ??
+    (options?.metadataSnapshot !== undefined ? "active" : undefined);
   const resolved =
     options?.modelRef ??
     (options?.agentId
@@ -280,19 +284,20 @@ export function getSessionDefaults(
           cfg,
           agentId,
           allowPluginNormalization: options.allowPluginNormalization,
-          manifestPlugins: options.metadataSnapshot,
+          manifestPlugins,
         })
       : resolveConfiguredModelRef({
           cfg,
           defaultProvider: DEFAULT_PROVIDER,
           defaultModel: DEFAULT_MODEL,
           allowPluginNormalization: options?.allowPluginNormalization,
-          manifestPlugins: options?.metadataSnapshot,
+          manifestPlugins,
         }));
   const displayModel = resolveSessionDisplayModelIdentityRefCached({
     cfg,
     provider: resolved.provider,
     model: resolved.model,
+    metadataSnapshot: options?.metadataSnapshot,
   });
   const catalogEntry = modelCatalog
     ? findModelCatalogEntry(modelCatalog, {
@@ -331,12 +336,11 @@ export function getSessionDefaults(
     agentId,
     modelCatalog:
       modelCatalog ??
-      (options?.providerPolicySource !== undefined &&
-      options.providerPolicySource !== "active-or-bundled"
+      (providerPolicySource !== undefined && providerPolicySource !== "active-or-bundled"
         ? []
         : undefined),
     sessionKey,
-    providerPolicySource: options?.providerPolicySource,
+    providerPolicySource,
   });
   return {
     modelProvider: displayModel.provider ?? resolved.provider,
