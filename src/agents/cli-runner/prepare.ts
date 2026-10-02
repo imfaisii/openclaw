@@ -1740,10 +1740,9 @@ async function prepareCliRunContextWithinReadFence(
     }
     if (!skipsTurnPreparation) {
       try {
-        const hookResult = promptBuildHookResult;
         const prependContext = [
           sessionPromptContext?.durableContext,
-          hookResult?.prependContext,
+          promptBuildHookResult?.prependContext,
           authorizedPromptBuildResult?.prependContext,
         ]
           .filter((value): value is string => Boolean(value?.trim()))
@@ -1758,9 +1757,10 @@ async function prepareCliRunContextWithinReadFence(
             !reusableCliSessionId?.trim() || reusableCliSession.mode === "reuse-with-drift",
           systemPrompt,
           thinkLevel: params.thinkLevel,
+          runtimeContextFragments: params.runtimeContextFragments,
           context: [
             turnRuntimeFacts?.relocatable,
-            hookResult?.appendContext,
+            promptBuildHookResult?.appendContext,
             authorizedPromptBuildResult?.appendContext,
           ],
         });
@@ -1778,15 +1778,15 @@ async function prepareCliRunContextWithinReadFence(
         } else {
           preparedPrompt = logicalPrompt;
         }
-        const hookSystemPrompt = hookResult?.systemPrompt?.trim();
+        const hookSystemPrompt = promptBuildHookResult?.systemPrompt?.trim();
         if (hookSystemPrompt) {
           systemPrompt = hookSystemPrompt;
         }
         systemPrompt =
           composeSystemPromptWithHookContext({
             baseSystemPrompt: systemPrompt,
-            prependSystemContext: hookResult?.prependSystemContext,
-            appendSystemContext: hookResult?.appendSystemContext,
+            prependSystemContext: promptBuildHookResult?.prependSystemContext,
+            appendSystemContext: promptBuildHookResult?.appendSystemContext,
           }) ?? systemPrompt;
       } catch (error) {
         cliBackendLog.warn(`cli prompt-build hook preparation failed: ${String(error)}`);
