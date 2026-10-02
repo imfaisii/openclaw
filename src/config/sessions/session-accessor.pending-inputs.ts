@@ -403,7 +403,7 @@ export async function stageSessionPendingInput(
           const physical = readOpenClawAgentDatabaseIdentity(current);
           return {
             agentId: current.agentId,
-            path: current.path,
+            path: physical.canonicalPath,
             databaseIdentity: physical.identity,
             databaseBirthtime: physical.birthtime,
           };
