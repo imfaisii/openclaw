@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import {
+  assertNoRetiredOAuthSidecarsBeforeConfigRecovery,
+  listLegacyOAuthSidecarPaths,
+} from "../../commands/doctor-auth-legacy-paths.js";
 import { planLegacyConfigForUpdateChannel } from "../../commands/doctor/legacy-config-repair.js";
 import { cloneEnvWithPlatformSemantics } from "../../config/env-vars.js";
 import { createConfigIO } from "../../config/io.js";
@@ -95,6 +99,7 @@ async function inspectUpdateAdmission(
         | Awaited<ReturnType<typeof captureTargetDatabaseSchemaContext>>
         | undefined;
       try {
+        assertNoRetiredOAuthSidecarsBeforeConfigRecovery({ env });
         // Doctor's existing planner supplies a source-bound projection; it never applies it here.
         const { snapshot, writeOptions } = await createConfigIO({
           env: cloneEnvWithPlatformSemantics(env),
@@ -113,16 +118,19 @@ async function inspectUpdateAdmission(
         }
         checks.set("config", { status: warnings.length ? "warn" : "ok" });
       } catch (error) {
-        if (!(error instanceof UpdatePreMutationError)) {
+        if (error instanceof RetiredStateFormatError) {
+          refuse("state-format", "retired-state-format", error.message);
+        } else if (error instanceof UpdatePreMutationError) {
+          refuse(
+            "config",
+            error.reason,
+            error.message,
+            error.nextAction ??
+              "Run openclaw doctor --fix, then correct any remaining configuration errors and retry.",
+          );
+        } else {
           throw error;
         }
-        refuse(
-          "config",
-          error.reason,
-          error.message,
-          error.nextAction ??
-            "Run openclaw doctor --fix, then correct any remaining configuration errors and retry.",
-        );
         databaseContext = undefined;
       }
       let schemasAccepted = false;
@@ -159,6 +167,13 @@ async function inspectUpdateAdmission(
           try {
             // The saved partition reads SQLite; admit its schema before inspecting live files
             // that published updaters omit from their later rehearsal snapshots.
+            assertNoRetiredStateFiles("OAuth credential sidecars", [
+              ...listLegacyOAuthSidecarPaths(
+                env,
+                snapshot.sourceConfigBeforeMigrations ?? snapshot.sourceConfig ?? snapshot.config,
+              ),
+              ...listLegacyOAuthSidecarPaths(databaseContext.env, databaseContext.config),
+            ]);
             assertNoRetiredStateFiles(
               "Cron state",
               await listRetiredCronStateFiles(
