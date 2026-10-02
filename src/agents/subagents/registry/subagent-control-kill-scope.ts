@@ -45,7 +45,7 @@ type KillBinding = {
   isCurrent: (entry: SubagentRunRecord, requirePreparedSession?: boolean) => boolean;
   ownsRun: () => boolean;
   canTraverse: (requirePreparedSession?: boolean) => boolean;
-  prepareRead: () => Promise<void> | undefined;
+  prepareRead: SubagentKillSession["prepareRead"];
 };
 
 export type KillTree = KillBinding & {
@@ -117,9 +117,8 @@ export async function withSubagentKillScope<T>(
     runs: Iterable<SubagentRunRecord>,
     trees: KillTree[],
     owner?: KillSelection["controller"],
-    isParentCurrent?: (requirePreparedSession?: boolean) => boolean,
+    parent?: KillBinding,
     ownsRoot?: (entry: SubagentRunRecord) => boolean,
-    prepareParentRead?: () => Promise<void> | undefined,
   ): void => {
     const controller = owner ? { ...owner } : undefined;
     for (const snapshot of runs) {
@@ -134,7 +133,7 @@ export async function withSubagentKillScope<T>(
       }
       const ownerCurrent = (candidate: SubagentRunRecord, requirePreparedSession = true) =>
         isAgentEventLifecycleGenerationCurrent(lifecycleGeneration) &&
-        isParentCurrent?.(requirePreparedSession) !== false &&
+        parent?.canTraverse(requirePreparedSession) !== false &&
         ownsRoot?.(candidate) !== false &&
         (!controller ||
           !ensureSubagentControllerOwnsRun({ cfg: params.cfg, controller, entry: candidate }));
@@ -206,7 +205,7 @@ export async function withSubagentKillScope<T>(
       };
       const prepareRead = (): Promise<void> | undefined => {
         const failures: unknown[] = [];
-        const publications = [prepareParentRead, session?.prepareRead].flatMap((prepare) => {
+        const publications = [parent?.prepareRead, session?.prepareRead].flatMap((prepare) => {
           try {
             const publication = prepare?.();
             return publication ? [publication] : [];
@@ -295,12 +294,11 @@ export async function withSubagentKillScope<T>(
     runs: Iterable<SubagentRunRecord>,
     trees: KillTree[],
     owner?: KillSelection["controller"],
-    isParentCurrent?: (requirePreparedSession?: boolean) => boolean,
+    parent?: KillBinding,
     ownsRoot?: (entry: SubagentRunRecord) => boolean,
-    prepareParentRead?: () => Promise<void> | undefined,
   ) => {
     const pending: Array<{ tree: KillTree; prepare: () => Promise<void> }> = [];
-    capture(pending, runs, trees, owner, isParentCurrent, ownsRoot, prepareParentRead);
+    capture(pending, runs, trees, owner, parent, ownsRoot);
     // Resident reservations can dispatch on the first await. Capture all known roots and
     // descendants first; persisted-only discovery below remains worker-owned.
     const resident = new Map(subagentRuns);
@@ -314,9 +312,7 @@ export async function withSubagentKillScope<T>(
         listRunsForControllerFromRuns(resident, controller.controllerSessionKey),
         tree.children,
         controller,
-        (prepared) => tree.canTraverse(prepared),
-        undefined,
-        tree.prepareRead,
+        tree,
       );
     }
     for (const item of pending) {
@@ -382,14 +378,7 @@ export async function withSubagentKillScope<T>(
           await pending;
           assertCurrent();
         }
-        await select(
-          candidates,
-          tree.children,
-          controller,
-          () => tree.canTraverse(),
-          undefined,
-          tree.prepareRead,
-        );
+        await select(candidates, tree.children, controller, tree);
       }
       for (const child of tree.children) {
         await refreshTree(child);
