@@ -6,12 +6,20 @@ import {
   closeOpenClawAgentDatabasesForTest,
   openOpenClawAgentDatabase,
 } from "../../state/openclaw-agent-db.js";
-import { upsertSessionEntryCore } from "./session-accessor.js";
 import {
+  appendTranscriptMessageSync,
+  loadTranscriptEvents,
+  upsertSessionEntryCore,
+} from "./session-accessor.js";
+import {
+  listSessionPendingInputs,
   stageSessionPendingInput,
   type SessionPendingInputReceipt,
 } from "./session-accessor.pending-inputs.js";
-import { captureSessionPendingInputWorkerCustody } from "./session-accessor.sqlite-pending-inputs.js";
+import {
+  captureSessionPendingInputWorkerCustody,
+  runWithSessionPendingInputWorkerCustody,
+} from "./session-accessor.sqlite-pending-inputs.js";
 import { resolveSqliteScope, toDatabaseOptions } from "./session-accessor.sqlite-scope.js";
 import { useTempSessionsFixture } from "./test-helpers.js";
 
@@ -25,7 +33,7 @@ describe("accepted input worker custody", () => {
     closeOpenClawAgentDatabasesForTest();
   });
 
-  it("captures the canonical database path across a state-directory alias", async () => {
+  it("appends, consumes, and finishes worker custody across a state-directory alias", async () => {
     const fixtureRoot = path.resolve(fixture.sessionsDir(), "../../..");
     const aliasRoot = path.join(fixtureRoot, "state-alias");
     fs.symlinkSync(fixtureRoot, aliasRoot, process.platform === "win32" ? "junction" : "dir");
@@ -52,7 +60,66 @@ describe("accepted input worker custody", () => {
     }
 
     const custody = receipt.run(() => captureSessionPendingInputWorkerCustody());
+    if (!custody) {
+      throw new Error("Expected captured worker custody");
+    }
     const database = openOpenClawAgentDatabase(toDatabaseOptions(resolveSqliteScope(scope)));
-    expect(custody?.facts.databasePath).toBe(fs.realpathSync(database.path));
+    expect(custody.facts.databasePath).toBe(fs.realpathSync(database.path));
+
+    const workerScope = { ...scope, storePath: custody.facts.databasePath };
+    const result = runWithSessionPendingInputWorkerCustody(
+      custody.facts,
+      custody.relocation,
+      custody.assertCurrent,
+      () => appendTranscriptMessageSync(workerScope, { message: receipt!.message }),
+    );
+    expect(result.value).toMatchObject({ ok: true, value: { appended: true } });
+    custody.publish(result.receipt);
+    receipt.finish("cancelled");
+    receipt = undefined;
+
+    expect(await loadTranscriptEvents(scope)).toContainEqual(
+      expect.objectContaining({ message: expect.objectContaining({ content: message.content }) }),
+    );
+    expect(await listSessionPendingInputs(scope)).toMatchObject({ items: [], total: 0 });
+  });
+
+  it("appends and finishes pending input through the native incognito owner", async () => {
+    const scope = {
+      agentId: "incognito-agent",
+      env: { OPENCLAW_STATE_DIR: path.resolve(fixture.sessionsDir(), "../../..") },
+      sessionId: "incognito-session",
+      sessionKey: "agent:incognito-agent:dashboard:incognito-pending-input",
+    };
+    await upsertSessionEntryCore(scope, {
+      incognito: true,
+      sessionId: scope.sessionId,
+      updatedAt: 1,
+    });
+    const message: PersistedUserTurnMessage = {
+      role: "user",
+      content: "Continue in memory",
+      timestamp: 100,
+      idempotencyKey: "incognito-native:user",
+    };
+    receipt = await stageSessionPendingInput(scope, {
+      runId: "incognito-native",
+      message,
+      assertCurrent: () => {},
+    });
+    if (!receipt) {
+      throw new Error("Expected incognito pending input custody");
+    }
+
+    expect(
+      receipt.run(() => appendTranscriptMessageSync(scope, { message: receipt!.message })),
+    ).toMatchObject({ ok: true, value: { appended: true } });
+    receipt.finish("cancelled");
+    receipt = undefined;
+
+    expect(await loadTranscriptEvents(scope)).toContainEqual(
+      expect.objectContaining({ message: expect.objectContaining({ content: message.content }) }),
+    );
+    expect(await listSessionPendingInputs(scope)).toMatchObject({ items: [], total: 0 });
   });
 });

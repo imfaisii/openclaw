@@ -403,9 +403,10 @@ export async function stageSessionPendingInput(
           const physical = readOpenClawAgentDatabaseIdentity(current);
           return {
             agentId: current.agentId,
-            path: physical.canonicalPath,
+            path: current.path,
             databaseIdentity: physical.identity,
             databaseBirthtime: physical.birthtime,
+            workerDatabasePath: physical.canonicalPath || current.path,
           };
         },
         databaseOptions,
@@ -420,6 +421,7 @@ export async function stageSessionPendingInput(
         sessionId: scope.sessionId,
         sessionKey: resolved.sessionKey,
         databasePath: source.path,
+        workerDatabasePath: source.workerDatabasePath,
         idempotencyKey,
         lifecycleGeneration,
         messageJson,
