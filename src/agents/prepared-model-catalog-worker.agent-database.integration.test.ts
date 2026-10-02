@@ -12,7 +12,7 @@ import { retirePreparedModelRuntimeAgent } from "./prepared-model-runtime.js";
 import { createCatalogFleetFixture } from "./test-helpers/prepared-model-catalog-fleet-fixture.js";
 import { usePreparedCatalogWorkerFixtures } from "./test-helpers/prepared-model-catalog-worker-fixture.js";
 
-const { makeTempDir, getCatalogWorkers } = usePreparedCatalogWorkerFixtures();
+const { makeTempDir, readCatalogWorkers } = usePreparedCatalogWorkerFixtures();
 const createFleetFixture = createCatalogFleetFixture(makeTempDir);
 
 // Leaving WAL needs an exclusive lock, which any connection in this process still refuses.
@@ -35,8 +35,8 @@ describe("Gateway catalog worker agent database readers", () => {
         loadPreparedModelRuntimeAuth(snapshot, { providerIds: [PROVIDER_ID] }),
       ),
     );
-    const spawned = getCatalogWorkers();
-    expect(spawned).toHaveLength(1);
+    const catalogWorkers = readCatalogWorkers();
+    expect(catalogWorkers).toHaveLength(1);
     const [deleted, survivor] = fixture.agentIds.map((agentId) =>
       path.join(fixture.entries[agentId]!.agentDir, "openclaw-agent.sqlite"),
     );
@@ -78,8 +78,8 @@ describe("Gateway catalog worker agent database readers", () => {
         providerIds: [survivorProfile.provider],
       });
       expect(survivorAuth?.authStore.profiles[survivorProfileId]).toEqual(survivorProfile);
-      expect(getCatalogWorkers()).toEqual(spawned);
-      expect(spawned[0]!.threadId).not.toBe(-1);
+      expect(readCatalogWorkers()).toEqual(catalogWorkers);
+      expect(catalogWorkers[0]!.threadId).not.toBe(-1);
     } finally {
       await reviveAgentDatabases([fixture.agentIds[0]!]);
     }

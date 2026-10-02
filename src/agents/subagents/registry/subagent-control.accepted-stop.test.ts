@@ -1,6 +1,7 @@
 // Preserve module setup before modules that consume it.
 // oxfmt-ignore
 import { runSubagentStateWorkerOperation, useSubagentControlFixture } from "./subagent-control.test-support.js";
+import { expectDefined } from "@openclaw/normalization-core/expect";
 import { expect, it, vi } from "vitest";
 import { awaitGateBeforeSettlement, createDeferred } from "../../../../test/helpers/promise.js";
 import { getRuntimeConfig } from "../../../config/config.js";
@@ -18,6 +19,7 @@ import { PluginRegistryInspectionResources } from "../../../plugins/registry-ins
 import { retireInspectionInstances } from "../../../plugins/registry-inspection.test-support.js";
 import {
   bindGatewayContextResolver,
+  clearGatewayContextResolver,
   getGatewayContextResolver,
 } from "../../../plugins/runtime/gateway-request-scope.js";
 import {
@@ -423,13 +425,22 @@ it("joins an execution registered while its accepted Stop awaits kill-claim pers
 it.each([
   { mode: "completed", startsAfterCleanup: false },
   { mode: "completed", startsAfterCleanup: true },
+  { mode: "self-disposal", startsAfterCleanup: true },
+  { mode: "self-disposal during wake cancellation", startsAfterCleanup: true },
+  { mode: "self-disposal with unrecorded binding loss", startsAfterCleanup: true },
   { mode: "completed callback error", startsAfterCleanup: true },
   { mode: "retained error", startsAfterCleanup: true },
   { mode: "controller replaced", startsAfterCleanup: true },
 ] as const)(
   "normal terminal cleanup preserves exact Stop ownership ($mode, afterCleanup=$startsAfterCleanup)",
   async ({ mode, startsAfterCleanup }) => {
-    const completed = mode === "completed";
+    const unrecordedLoss = mode === "self-disposal with unrecorded binding loss";
+    const retiresDuringStop = mode === "self-disposal during wake cancellation" || unrecordedLoss;
+    const selfDisposal = mode === "self-disposal" || retiresDuringStop;
+    const completed = mode === "completed" || (selfDisposal && !unrecordedLoss);
+    if (retiresDuringStop) {
+      fixture.wake.mockResolvedValue(false);
+    }
     const requester = "agent:main:main";
     const key = (id: string) => `agent:main:subagent:${id}`;
     const controller = {
@@ -455,7 +466,7 @@ it.each([
         requesterDisplayKey: requester,
         task: "retained cleanup ownership",
         cleanup: "keep",
-        collect: true,
+        collect: id !== "root" || !retiresDuringStop,
         sessionEntry: { sessionId: `${id}-session`, lifecycleRevision: `${id}-revision` },
         expectsCompletionMessage: false,
       });
@@ -479,6 +490,16 @@ it.each([
     const releaseCleanup = createDeferred();
     const failure = new Error("raw disposal callback failed");
     let callbackCompleted = false;
+    let pending: ReturnType<typeof killAllControlledSubagentRuns> | undefined;
+    let stopReturned = false;
+    let bindingLost = false;
+    const stop = () =>
+      killAllControlledSubagentRuns({
+        cfg: getRuntimeConfig(),
+        controller,
+        runs: [root],
+        ...(retiresDuringStop ? { suppressTaskDelivery: true } : {}),
+      });
     let resources: PluginRegistryInspectionResources | undefined;
     if (mode === "completed callback error") {
       const inspection = new PluginRegistryInspectionResources(retireInspectionInstances);
@@ -503,6 +524,58 @@ it.each([
         if (mode === "retained error") {
           throw failure;
         }
+        if (selfDisposal) {
+          const selected = expectDefined(subagentRuns.get(root.runId), "terminal cleanup row");
+          expect(getGatewayContextResolver(selected)).toBe(
+            retiresDuringStop ? resolver : undefined,
+          );
+          if (retiresDuringStop) {
+            expect(selected.requesterSettleWake).toBeDefined();
+          }
+          if (unrecordedLoss) {
+            fixture.worker.mockImplementation((stateContext, operation, options) =>
+              runSubagentStateWorkerOperation(
+                stateContext,
+                (scope) =>
+                  operation({
+                    execute: async (command, commandOptions) => {
+                      const row = isSubagentRegistryWriteCommand(command)
+                        ? command.input.values.find((candidate) => candidate.run_id === root.runId)
+                        : undefined;
+                      const next = row && rowToSubagentRunRecord(row);
+                      const receipt = await scope.execute(command, commandOptions);
+                      if (next?.suppressCompletionDelivery && !next.requesterSettleWake) {
+                        const current = expectDefined(subagentRuns.get(root.runId), "wake owner");
+                        expect(getGatewayContextResolver(current)).toBe(resolver);
+                        // Lose the binding before publication can record its retirement.
+                        clearGatewayContextResolver(current);
+                        bindingLost = true;
+                      }
+                      return receipt;
+                    },
+                  }),
+                options,
+              ),
+            );
+          }
+          pending = stop();
+          const result = await pending;
+          stopReturned = true;
+          const retired = expectDefined(subagentRuns.get(root.runId), "retired cleanup row");
+          expect(getGatewayContextResolver(retired)).toBeUndefined();
+          expect(retired.requesterSettleWake).toBeUndefined();
+          expect(registration.entry?.executionSettlement).toMatchObject({
+            status: "pending",
+            cleanupSettled: false,
+          });
+          expect(context.chatAbortControllers.get(root.runId)).toBe(registration.entry);
+          if (unrecordedLoss) {
+            expect(bindingLost).toBe(true);
+            expect(result).toHaveProperty("error", expect.stringContaining("owner changed"));
+          } else if (result.status === "error") {
+            throw new Error(result.error);
+          }
+        }
         await resources?.release();
       },
       registration.cleanup,
@@ -517,15 +590,9 @@ it.each([
       cleanupEntered.resolve();
       await releaseCleanup.promise;
     });
-    let pending: ReturnType<typeof killAllControlledSubagentRuns> | undefined;
-    let stopReturned = false;
     const startStop = async () => {
       observingStop = true;
-      pending = killAllControlledSubagentRuns({
-        cfg: getRuntimeConfig(),
-        controller,
-        runs: [root],
-      });
+      pending = stop();
       await awaitGateBeforeSettlement(
         tailSelected.promise,
         pending.then(() => {
@@ -553,10 +620,12 @@ it.each([
       releaseCleanup.resolve();
       await fixture.settle();
       expect(subagentRuns.get(root.runId)?.cleanupCompletedAt).toBeTypeOf("number");
-      expect(getGatewayContextResolver(subagentRuns.get(root.runId)!)).toBeUndefined();
+      expect(getGatewayContextResolver(subagentRuns.get(root.runId)!)).toBe(
+        retiresDuringStop ? resolver : undefined,
+      );
       expect(settlement.status).toBe("pending");
       expect(resolveSubagentSessionStatus(subagentRuns.get("child"))).toBe("running");
-      if (startsAfterCleanup) {
+      if (startsAfterCleanup && !selfDisposal) {
         await startStop();
       }
       expect(stopReturned).toBe(false);
@@ -567,6 +636,10 @@ it.each([
         registerChatAbortController(registrationParams);
       }
       releaseTail.resolve();
+      if (selfDisposal) {
+        expect(await execution).toBeUndefined();
+        expect(stopReturned).toBe(true);
+      }
       const result = await pending;
       await execution;
       const cleanupCompleted = completed || mode === "completed callback error";
@@ -592,6 +665,7 @@ it.each([
       releaseCleanup.resolve();
       releaseTail.resolve();
       await Promise.allSettled([pending, execution]);
+      fixture.worker.mockImplementation(runSubagentStateWorkerOperation);
       registration.cleanup();
       await resources?.release().catch(() => {});
       context.chatAbortControllers.clear();

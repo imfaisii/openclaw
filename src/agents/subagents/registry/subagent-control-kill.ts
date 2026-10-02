@@ -94,11 +94,22 @@ async function killSubagentRun(
   if (captured) {
     const entry = getCurrentSubagentRunOwner(subagentRuns, params.entry) ?? captured.entry;
     const resolver = getGatewayContextResolver(entry);
-    const releasedAfterCleanup =
-      resolver === undefined && captured.execution.executionSettlement?.cleanupSettled === true;
+    const cleanup =
+      resolver === undefined ? getSubagentExecutionCleanup(entry, params.session.entry) : undefined;
+    const releasedToSelfCleanup =
+      cleanup !== undefined &&
+      cleanup.settlement === captured.execution.executionSettlement &&
+      cleanup.isCurrent() &&
+      cleanup.isSelf();
+    if (releasedToSelfCleanup) {
+      params.session.assertCurrent();
+    }
+    const releasedBinding =
+      resolver === undefined &&
+      (captured.execution.executionSettlement?.cleanupSettled === true || releasedToSelfCleanup);
     if (
       entry.runId !== captured.runId ||
-      (resolver !== captured.resolver && !releasedAfterCleanup) ||
+      (resolver !== captured.resolver && !releasedBinding) ||
       captured.resolver?.() !== captured.context ||
       (captured.context.chatAbortControllers.has(captured.runId) &&
         captured.context.chatAbortControllers.get(captured.runId) !== captured.execution)
@@ -107,7 +118,10 @@ async function killSubagentRun(
     }
   } else if (retiredCleanup) {
     params.session.assertCurrent();
-    if (!retiredCleanup.isCurrent() || !retiredCleanup.settlement.cleanupSettled) {
+    if (
+      !retiredCleanup.isCurrent() ||
+      (!retiredCleanup.isSelf() && !retiredCleanup.settlement.cleanupSettled)
+    ) {
       throw new Error("Subagent execution owner changed during cancellation");
     }
   }
