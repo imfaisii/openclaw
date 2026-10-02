@@ -971,6 +971,7 @@ describe("createVoiceCallRuntime lifecycle", () => {
       };
       mocks.managerGetCall.mockReturnValue(call);
       await createVoiceCallRuntime({
+        scheduler: createTestPluginServiceScheduler(),
         config,
         coreConfig: {} as OpenClawConfig,
         agentRuntime: { session: createMockSessionRuntime({}) } as never,
