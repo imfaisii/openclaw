@@ -34,6 +34,7 @@ import {
 import {
   createCollectorLaunchCallbacks,
   createCollectorPreparationHold,
+  type CollectorCleanupOptions,
 } from "./subagent-spawn-collector.js";
 import {
   prepareContextEngineSubagentSpawn,
@@ -324,10 +325,6 @@ export async function spawnSubagentDirect(
       childSystemPrompt = `${childSystemPrompt}\n\nCall structured_output with {"result": <your final result>} until one payload is accepted, with at most one retry after a rejected attempt. The result value must match the requested JSON Schema. Do not call structured_output again after acceptance.`;
     }
 
-    let retainOnSessionKeep = false;
-    let attachmentsReceipt: SpawnSubagentResult["attachments"];
-    let attachmentId: string | undefined;
-
     const materializedAttachments = await materializeSubagentAttachments({
       assertActive,
       config: cfg,
@@ -344,10 +341,8 @@ export async function spawnSubagentDirect(
         error: materializedAttachments.error,
       };
     }
-    if (materializedAttachments?.status === "ok") {
-      retainOnSessionKeep = materializedAttachments.retainOnSessionKeep;
-      attachmentsReceipt = materializedAttachments.receipt;
-      attachmentId = materializedAttachments.attachmentId;
+    const attachmentId = materializedAttachments?.attachmentId;
+    if (materializedAttachments) {
       childSystemPrompt = `${childSystemPrompt}\n\n${materializedAttachments.systemPromptSuffix}`;
     }
 
@@ -452,18 +447,14 @@ export async function spawnSubagentDirect(
       spawnMode,
       resolvedModelMetadata,
     });
-    const cleanupFailedSpawn = (
-      waitForSessionDeletion?: boolean,
-      waitForCleanup?: () => Promise<void> | undefined,
-    ) =>
+    const cleanupFailedSpawn = (options?: CollectorCleanupOptions) =>
       cleanupFailedSpawnBeforeAgentStart({
         childSessionKey,
         attachmentId,
         emitLifecycleHooks: threadBindingReady,
         deleteTranscript: true,
         ...provisionalSessionIdentity,
-        waitForSessionDeletion,
-        waitForCleanup,
+        ...options,
         isCurrent: isCleanupCurrent,
         ...(cleanupOwner ? { callGateway: cleanupOwner.callGateway } : {}),
       });
@@ -597,7 +588,7 @@ export async function spawnSubagentDirect(
           queued: params.collect === true,
           ...(gatewayContextResolver ? { gatewayContextResolver } : {}),
           attachmentId,
-          retainAttachmentsOnKeep: retainOnSessionKeep,
+          retainAttachmentsOnKeep: materializedAttachments?.retainOnSessionKeep ?? false,
         };
       },
     });
@@ -700,7 +691,7 @@ export async function spawnSubagentDirect(
         undefined,
       ...resolvedModelMetadata,
       modelApplied: plan.modelApplied || undefined,
-      attachments: attachmentsReceipt,
+      attachments: materializedAttachments?.receipt,
     };
   } finally {
     provisionalCleanupOpen = false;

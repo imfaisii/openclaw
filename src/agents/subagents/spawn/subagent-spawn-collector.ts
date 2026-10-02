@@ -31,6 +31,10 @@ type CollectorLaunchCallbacks = Pick<
   Parameters<typeof activateSwarmRun>[0],
   "start" | "onStartFailure" | "onRemoved" | "signal"
 >;
+export type CollectorCleanupOptions = Pick<
+  Parameters<typeof cleanupFailedSpawnBeforeAgentStart>[0],
+  "waitForSessionDeletion" | "waitForCleanup"
+>;
 
 /** Hands preparation cleanup to its reservation before registration can wait on Stop. */
 export function createCollectorPreparationHold(params: {
@@ -111,8 +115,7 @@ export function createCollectorLaunchCallbacks(params: {
   recordParticipant: () => void;
   emitSpawnLifecycleHooks: (runId: string) => Promise<void>;
   cleanupFailedSpawn: (
-    waitForSessionDeletion?: boolean,
-    waitForCleanup?: () => Promise<void> | undefined,
+    options?: CollectorCleanupOptions,
   ) => ReturnType<typeof cleanupFailedSpawnBeforeAgentStart>;
 }): CollectorLaunchCallbacks {
   const {
@@ -200,13 +203,13 @@ export function createCollectorLaunchCallbacks(params: {
   const cleanupOnce = async () =>
     await Promise.allSettled([
       Promise.resolve().then(() => preparation?.rollback()),
-      params.cleanupFailedSpawn(
+      params.cleanupFailedSpawn({
         // A launch RPC can fail after acceptance. Keep the FIFO slot until
         // deleting the child session proves no accepted run remains active.
-        !launchTerminationConfirmed,
-        () =>
+        waitForSessionDeletion: !launchTerminationConfirmed,
+        waitForCleanup: () =>
           registrationScope?.waitForClaim() ?? registrationScope?.waitForRetirementPublication(),
-      ),
+      }),
     ]);
   let cleanupAttempt: ReturnType<typeof cleanupOnce> | undefined;
   const cleanupSucceeded = ([contextRollback, sessionCleanup]: Awaited<
