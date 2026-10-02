@@ -266,25 +266,23 @@ function fixtures(): RowFixture[] {
         totalTokensVersion: 1,
       },
     },
-    ...([-1, 0, 1] as const).map(
-      (offset): RowFixture => ({
-        name: `observer digest ${offset < 0 ? "older" : offset === 0 ? "equal" : "newer"} than run start`,
-        key: `agent:main:dashboard:observer-${offset}`,
-        entry: {
-          ...BASE_ENTRY,
-          startedAt: START,
-          observerDigest: {
-            sessionKey: `agent:main:dashboard:observer-${offset}`,
-            agentId: "main",
-            runId: "observer-run",
-            headline: "The fixture is ready",
-            health: "wrapping-up",
-            updatedAt: START + offset,
-            revision: 3,
-          },
+    ...([-1, 0, 1] as const).map((offset): RowFixture => ({
+      name: `observer digest ${offset < 0 ? "older" : offset === 0 ? "equal" : "newer"} than run start`,
+      key: `agent:main:dashboard:observer-${offset}`,
+      entry: {
+        ...BASE_ENTRY,
+        startedAt: START,
+        observerDigest: {
+          sessionKey: `agent:main:dashboard:observer-${offset}`,
+          agentId: "main",
+          runId: "observer-run",
+          headline: "The fixture is ready",
+          health: "wrapping-up",
+          updatedAt: START + offset,
+          revision: 3,
         },
-      }),
-    ),
+      },
+    })),
     {
       name: "live subagent accumulated runtime and inherited model",
       key: LIVE,
