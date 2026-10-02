@@ -841,7 +841,7 @@ describe("Gateway steer FIFO", () => {
   );
 
   it(
-    "suppresses sequential tools when a Gateway steer arrives during preflight",
+    "runs the first sequential tool and skips its tail when a Gateway steer arrives during preflight",
     async () => {
       const fixture = await createGatewayFixture("steer-sequential-tail", {
         withSteeringTools: true,
@@ -871,6 +871,7 @@ describe("Gateway steer FIFO", () => {
           expect(await readTrace(steeringTools.tracePath)).toEqual([
             "preflight-start",
             "preflight-end",
+            "gate-executed",
           ]),
         WAIT_OPTS,
       );
@@ -893,15 +894,14 @@ describe("Gateway steer FIFO", () => {
       expect(gateOutputIndex).toBeGreaterThanOrEqual(0);
       expect(tailOutputIndex).toBeGreaterThan(gateOutputIndex);
       expect(steerIndex).toBeGreaterThan(tailOutputIndex);
-      expect(contentText(inputItems[gateOutputIndex]?.output)).toContain(
-        "Skipped to process an incoming message.",
-      );
+      expect(contentText(inputItems[gateOutputIndex]?.output)).toContain("steering gate completed");
       expect(contentText(inputItems[tailOutputIndex]?.output)).toContain(
         "Skipped to process an incoming message.",
       );
       expect(await readTrace(steeringTools.tracePath)).toEqual([
         "preflight-start",
         "preflight-end",
+        "gate-executed",
       ]);
       expect(fixture.modelServer.requests).toHaveLength(2);
       expect(fixture.chatErrors).toEqual([]);
