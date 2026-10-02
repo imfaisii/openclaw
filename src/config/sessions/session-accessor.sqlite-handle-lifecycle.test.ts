@@ -222,7 +222,7 @@ describe("SQLite session handle lifecycle", () => {
         {
           message: { role: "user", content: "append after close" },
           shouldAppend: async () => {
-            expect(closeOpenClawAgentDatabaseByPath(databasePath)).toBe(true);
+            expect(await closeOpenClawAgentDatabaseByPathAsync(databasePath)).toBe(true);
             return true;
           },
         },

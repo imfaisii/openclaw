@@ -89,7 +89,8 @@ describe("SQLite lifecycle cleanup races", () => {
       ...options,
       sessionKey: options.sessionKey ?? `agent:main:cleanup-race-${sessionId}`,
     };
-    await replaceSessionEntry(scope, { sessionId, updatedAt: now, ...entry });
+    // Automatic maintenance must not consume the explicit cleanup's archive hooks.
+    replaceSessionEntrySync(scope, { sessionId, updatedAt: now, ...entry });
     if (events) {
       await replaceTranscriptEvents(scope, events);
     }

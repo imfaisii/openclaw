@@ -1,6 +1,10 @@
 import path from "node:path";
 import { readDatabasePathIdentitySync } from "../../infra/sqlite-worker-identity.js";
-import { isIncognitoSessionKey, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import {
+  isIncognitoSessionKey,
+  normalizeAgentId,
+  parseAgentSessionKey,
+} from "../../routing/session-key.js";
 import {
   isIncognitoOpenClawAgentSqlitePath,
   resolveOpenClawAgentSqlitePath,
@@ -29,15 +33,29 @@ export async function loadTranscriptEvents(
   scope: SessionTranscriptReadScope,
 ): Promise<TranscriptEvent[]> {
   const captured = {
-    ...scope,
+    agentId: scope.agentId,
+    clone: scope.clone,
+    defaultAgentId: scope.defaultAgentId,
+    hydrateSkillPromptRefs: scope.hydrateSkillPromptRefs,
+    readConsistency: scope.readConsistency,
+    sessionId: scope.sessionId,
+    sessionKey: scope.sessionKey,
+    sessionFile: scope.sessionFile,
+    threadId: scope.threadId,
+    maxEventBytes: scope.maxEventBytes,
+    sessionEntry: scope.sessionEntry ? { sessionId: scope.sessionEntry.sessionId } : undefined,
     ...(scope.storePath ? { storePath: path.resolve(scope.storePath) } : {}),
     env: captureSessionTranscriptStorageEnvironment(scope.env ?? process.env),
-  };
+  } satisfies SessionTranscriptReadScope;
   if (
     isIncognitoSessionKey(captured.sessionKey) ||
     (captured.storePath &&
       isIncognitoOpenClawAgentSqlitePath(captured.storePath, {
-        agentId: captured.agentId ?? resolveAgentIdFromSessionKey(captured.sessionKey),
+        agentId: normalizeAgentId(
+          captured.agentId ??
+            parseAgentSessionKey(captured.sessionKey)?.agentId ??
+            captured.defaultAgentId,
+        ),
         env: captured.env,
       }))
   ) {
@@ -69,6 +87,10 @@ export async function loadTranscriptEvents(
     const databasePath = resolveOpenClawAgentSqlitePath(options);
     const identity = identities.get(assertSessionStoreReadCandidate(databasePath, candidates));
     if (!identity) {
+      // Discovery can select an absent member of the captured sibling family.
+      if (!readDatabasePathIdentitySync(databasePath).key.startsWith("file:")) {
+        return [];
+      }
       throw new Error("Transcript events changed their captured database owner");
     }
     const assertSourceCurrent = () => {
