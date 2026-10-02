@@ -1590,7 +1590,7 @@ describe("openclaw agent database", () => {
         candidate.close();
       }
       expect(fs.readFileSync(databasePath)).toEqual(before);
-      expect(fs.existsSync(resolveOpenClawStateSqlitePath({ env }))).toBe(false);
+      expect(fs.existsSync(resolveOpenClawStateSqlitePath(env))).toBe(false);
     },
   );
 
