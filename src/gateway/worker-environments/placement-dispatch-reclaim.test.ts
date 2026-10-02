@@ -1020,7 +1020,7 @@ describe("worker placement dispatch reclaim", () => {
       reconcileCommitsManifest: false,
       runReclaimBarrier: async ({ authorize, beforeDrain, begin, reclaim }) => {
         queued.resolve();
-        return await runExclusiveSessionLifecycleMutation({
+        return await runExclusiveSessionLifecycleMutation("placement-reclaim", {
           scope,
           identities,
           run: async () => {
@@ -1035,7 +1035,7 @@ describe("worker placement dispatch reclaim", () => {
       },
     });
     await harness.service.dispatch(REQUEST);
-    const owner = runExclusiveSessionLifecycleMutation({
+    const owner = runExclusiveSessionLifecycleMutation("placement-reclaim", {
       scope,
       identities,
       run: async () => {

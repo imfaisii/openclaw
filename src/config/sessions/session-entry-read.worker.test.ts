@@ -504,7 +504,7 @@ it.each(["durable", "incognito"] as const)(
       }
       const authority = await prepareSessionDeliveryGeneration(descriptor);
       try {
-        await runExclusiveSessionLifecycleMutation({
+        await runExclusiveSessionLifecycleMutation("patch", {
           scope: database.path,
           identities: [sessionKey, entry.sessionId],
           prepare: async () => {

@@ -77,7 +77,7 @@ export async function commitBackgroundResultToSession(params: {
   const identities = [sessionKey, expectedSessionId];
 
   params.assertCurrent?.();
-  return await runExclusiveSessionLifecycleMutation({
+  return await runExclusiveSessionLifecycleMutation("background-result", {
     scope: storePath,
     identities,
     signal: params.signal,

@@ -235,7 +235,7 @@ test("identity changes fence archive before cancellation and force fresh authori
 
     let sharingSettled = false;
     const sharing = track(
-      runExclusiveSessionLifecycleMutation({
+      runExclusiveSessionLifecycleMutation("archive", {
         scope: sharingTarget.storePath,
         identities: [
           sharingTarget.canonicalKey,
@@ -424,7 +424,7 @@ test("alias archive lets an earlier alias mutation finish before canonical recla
     const reclaim = vi.fn(async () => {
       reclaimEntered.resolve();
       await allowNestedReclaim.promise;
-      await runExclusiveSessionLifecycleMutation({
+      await runExclusiveSessionLifecycleMutation("archive", {
         scope: storePath,
         identities: [aliasKey, sessionKey, sessionId],
         run: async () => {},
@@ -450,7 +450,7 @@ test("alias archive lets an earlier alias mutation finish before canonical recla
     );
     await racePromiseWithAbortSignal(reclaimEntered.promise, signal);
     const contender = track(
-      runExclusiveSessionLifecycleMutation({
+      runExclusiveSessionLifecycleMutation("archive", {
         scope: storePath,
         identities: [aliasKey],
         run: async () => {

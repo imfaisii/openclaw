@@ -240,7 +240,7 @@ export function createGatewayWorkerPlacementReclaimBarriers(
       });
     let assertBindingCurrent: (() => void) | undefined;
     let reclaimedPlacement: Awaited<ReturnType<typeof reclaim>> | undefined;
-    await runExclusiveSessionLifecycleMutation({
+    await runExclusiveSessionLifecycleMutation("placement-reclaim", {
       scope: target.storePath,
       identities: lifecycleIdentities,
       prepare: async (lifecycle) => {
@@ -337,7 +337,7 @@ export function createGatewayWorkerPlacementReclaimBarriers(
         authorize?.();
       };
       let reclaimedPlacement: Awaited<ReturnType<typeof reclaim>> | undefined;
-      await runExclusiveSessionLifecycleMutation({
+      await runExclusiveSessionLifecycleMutation("placement-failed-reclaim", {
         scope: target.storePath,
         identities: lifecycleIdentities,
         prepare: async (lifecycle) => {

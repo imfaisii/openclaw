@@ -462,7 +462,7 @@ describe("private subagent completion processing receipts", () => {
       const held = createDeferred();
       const release = createDeferred();
       const caller = new AbortController();
-      const mutation = runExclusiveSessionLifecycleMutation({
+      const mutation = runExclusiveSessionLifecycleMutation("patch", {
         scope: storePath,
         identities: [sessionKey, sessionId],
         run: async () => {
