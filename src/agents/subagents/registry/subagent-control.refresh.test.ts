@@ -5,7 +5,7 @@ import { useSubagentControlFixture } from "./subagent-control.test-support.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { expect, it, vi } from "vitest";
 import { createDeferred, withinTest } from "../../../../test/helpers/promise.js";
-import { getRuntimeConfig } from "../../../config/config.js";
+import { getRuntimeConfig, setRuntimeConfigSnapshot } from "../../../config/config.js";
 import * as sessions from "../../../config/sessions/session-accessor.js";
 import * as generations from "../../../config/sessions/session-delivery-generation.js";
 import { SqliteWorkerError } from "../../../infra/sqlite-worker-contract.js";
@@ -35,10 +35,21 @@ it.for(["complete", "reject undefined"] as const)(
   "coalesces fresh refresh batches in the enclosing scope before %s",
   async (completion, { signal }) => {
     const rootKey = "agent:main:subagent:refresh-root";
-    const key = (id: string) => (id === "root" ? rootKey : "agent:main:subagent:refresh-" + id);
+    const sharedRawKey = completion === "complete";
+    if (sharedRawKey) {
+      const cfg = getRuntimeConfig();
+      setRuntimeConfigSnapshot({
+        ...cfg,
+        agents: { ...cfg.agents, list: [{ id: "main", default: true }, { id: "research" }] },
+      });
+    }
+    const agentId = (id: string) => (sharedRawKey && id === "second" ? "research" : "main");
+    const key = (id: string) =>
+      id === "root" ? rootKey : sharedRawKey ? "global" : "agent:main:subagent:refresh-" + id;
     const register = (id: string) =>
       registerSubagentRun({
         runId: "refresh-" + id,
+        childAgentId: agentId(id),
         childSessionKey: key(id),
         requesterSessionKey: id === "root" ? "agent:main:main" : rootKey,
         controllerSessionKey: id === "root" ? "agent:main:main" : rootKey,
@@ -52,7 +63,7 @@ it.for(["complete", "reject undefined"] as const)(
     for (const id of ["root", "first", "second"]) {
       await writeSubagentSessionEntry({
         stateDir: fixture.stateDir,
-        agentId: "main",
+        agentId: agentId(id),
         sessionKey: key(id),
         defaultSessionId: "refresh-" + id + "-session",
       });
