@@ -2013,7 +2013,6 @@ export async function startQaMockOpenAiServer(params?: QaMockOpenAiServerOptions
   const sessionIdentity = createQaSessionIdentityResolver();
   const host = params?.host ?? "127.0.0.1";
   const finalOnlyMarkerPauseMs = params?.finalOnlyMarkerPauseMs ?? 1_500;
-  const telegramChannelStreamingPauseMs = params?.telegramChannelStreamingPauseMs ?? 3_000;
   const repeatedRequestResponsePauseMs =
     params?.repeatedRequestResponsePauseMs ?? QA_REPEATED_REQUEST_RESPONSE_PAUSE_MS;
   const repeatedRequestStalledResponsePauseMs =
@@ -2219,10 +2218,14 @@ export async function startQaMockOpenAiServer(params?: QaMockOpenAiServerOptions
           }
         : {}),
       ...(failure ? { failure } : {}),
-      ...(resolveTelegramChannelStreamingPause(
-        splitMockConversationContext(prompt).current,
-        telegramChannelStreamingPauseMs,
-      ) ??
+      ...((() => {
+        const telegramPause = resolveTelegramChannelStreamingPause(
+          splitMockConversationContext(prompt).current,
+        );
+        return telegramPause && params?.telegramChannelStreamingPause
+          ? { previewPause: params.telegramChannelStreamingPause }
+          : telegramPause;
+      })() ??
         (QA_FINAL_ONLY_MARKER_STREAMING_PROMPT_RE.test(allInputText)
           ? { previewPauseMs: finalOnlyMarkerPauseMs }
           : {})),
@@ -2376,7 +2379,13 @@ export async function startQaMockOpenAiServer(params?: QaMockOpenAiServerOptions
           dispatched.onResponseSent?.();
           return;
         }
-        await writeSse(res, events, "responses", dispatched.previewPauseMs);
+        await writeSse(
+          res,
+          events,
+          "responses",
+          dispatched.previewPauseMs,
+          dispatched.previewPause,
+        );
         dispatched.onResponseSent?.();
         return;
       }

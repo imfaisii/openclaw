@@ -236,11 +236,10 @@ function buildTelegramPolicyHotReloadText(prompt: string): string | undefined {
 
 export function resolveTelegramChannelStreamingPause(
   prompt: string,
-  previewPauseMs = 3_000,
 ): { previewPauseMs: number } | undefined {
   return QA_TELEGRAM_PREPARED_DELIVERY_RE.test(prompt) ||
     readTelegramPolicyHotReloadPrompt(prompt)?.lineCount === 40
-    ? { previewPauseMs }
+    ? { previewPauseMs: 3_000 }
     : undefined;
 }
 
