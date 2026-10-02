@@ -54,6 +54,14 @@ original config and names the affected path. Install `2026.9.7`, run
 `openclaw doctor --fix`, then upgrade again. The repaired forms are
 `voice.tts.providers.<provider>`, guild-channel `enabled`, and top-level `bindings`.
 
+OAuth credential sidecars under `credentials/auth-profiles/` are retired. Their
+last writer shipped in `2026.5.16-beta.3` on May 16, 2026; `2026.5.16-beta.4`
+removed that writer. Doctor detects these files without reading credentials or
+accessing encryption keys. Upgrade through `2026.9.7` and run
+`openclaw doctor --fix` on the original host before retrying. The supported
+`auth.json`, `auth-profiles.json`, SQLite credential, and migration-recovery
+contracts remain unchanged.
+
 OpenClaw `v2026.9.7` can still write ownerless and mode-less cron jobs, and its
 migration/import writers can preserve null, `deliver`, or mixed-case delivery
 modes. Those cron repairs remain supported. JSON quarantine files also remain supported:
