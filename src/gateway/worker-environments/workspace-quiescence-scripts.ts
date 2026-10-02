@@ -102,9 +102,6 @@ function resumeProcesses(entries) {
     }
   }
 }
-function processStatus(pid) {
-  return processIdentity(pid, true);
-}
 function quiescenceCandidates(rows, expectedUid, excludedPids, frozen) {
   const preserved = ancestors(rows);
   return [...rows.entries()].filter(
@@ -227,7 +224,7 @@ function assertWatchdogActive() {
     }
     return;
   }
-  const status = processStatus(input.watchdog.pid);
+  const status = processIdentity(input.watchdog.pid, true);
   if (!status || status.start !== input.watchdog.start) {
     throw new Error("workspace quiescence watchdog identity changed unexpectedly");
   }
@@ -249,7 +246,7 @@ function refreshLease(processes) {
 }
 assertWatchdogActive();
 for (const entry of input.processes) {
-  const status = processStatus(entry.pid);
+  const status = processIdentity(entry.pid, true);
   if (!status || status.start !== entry.start) continue;
   if (status.state && !status.state.startsWith("T")) throw new Error("workspace quiescence process resumed unexpectedly");
 }
@@ -274,7 +271,7 @@ if (validationMode === "final" && !sharedHost) {
     for (const [pid, row] of candidates) {
       try {
         if (input.expiresAtMs - Date.now() < 5000) refreshLease(frozenEntries);
-        const current = processStatus(pid);
+        const current = processIdentity(pid, true);
         if (!current || current.start !== row.start) {
           frozen.delete(pid);
           continue;
@@ -437,7 +434,7 @@ for (const name of orphanNames) {
     if (lease.sharedHost !== true || lease.processes.length !== 0) {
       throw new Error("native quiescence cannot take over another process scope");
     }
-    const prior = lease.watchdog && processStatus(lease.watchdog.pid);
+    const prior = lease.watchdog && processIdentity(lease.watchdog.pid, true);
     if (prior && prior.start === lease.watchdog.start && !/^[ZX]/.test(prior.state)) {
       throw new Error("prior workspace quiescence watchdog is still active");
     }
@@ -709,8 +706,7 @@ export function workspaceQuiescenceArgv(
         ? [operation.nonce, String(operation.timeoutMs), operation.validationMode, hostMode]
         : [operation.nonce];
   if (watchdogLifetime && operation.action !== "renew") {
-    args.push(watchdogLifetime);
-    if (operation.action === "acquire") args.push(operation.nonce);
+    args.push(watchdogLifetime, ...(operation.action === "acquire" ? [operation.nonce] : []));
   }
   return ["node", "-e", scripts[operation.action], root, ...args];
 }

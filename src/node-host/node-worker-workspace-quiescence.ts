@@ -320,7 +320,9 @@ export class NodeWorkerWorkspaceQuiescence {
     lease.control = { action: operation.action, receipt };
     try {
       lease.child.send({ type: "workspace-quiescence-control", ...operation }, (error) => {
-        if (error) receipt.reject(error);
+        if (error) {
+          receipt.reject(error);
+        }
       });
       return await receipt.promise;
     } finally {
@@ -341,6 +343,19 @@ export class NodeWorkerWorkspaceQuiescence {
     // A failed cleanup remains owned, even after its caller observes the error.
     void completed.promise.catch(() => undefined);
     let releaseWorkspace: (() => void) | undefined;
+    const finishControl = async () => {
+      try {
+        await cleanup();
+        releaseWorkspace?.();
+        this.controls.delete(completed.promise);
+        completed.resolve();
+      } catch (error) {
+        // The scope owner caches uncertain extinction; close must not turn it
+        // into success or release workspace custody on a later attempt.
+        completed.reject(error);
+        throw error;
+      }
+    };
     const abort = () => this.supervisor.cancel(runId);
     signal?.addEventListener("abort", abort, { once: true });
     try {
@@ -374,17 +389,7 @@ export class NodeWorkerWorkspaceQuiescence {
       return result.stdout;
     } finally {
       signal?.removeEventListener("abort", abort);
-      try {
-        await cleanup();
-        releaseWorkspace?.();
-        this.controls.delete(completed.promise);
-        completed.resolve();
-      } catch (error) {
-        // The scope owner caches uncertain extinction; close must not turn it
-        // into success or release workspace custody on a later attempt.
-        completed.reject(error);
-        throw error;
-      }
+      await finishControl();
     }
   }
 }

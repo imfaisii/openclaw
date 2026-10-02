@@ -281,8 +281,9 @@ process.on("message", (message) => {
         const [command, argv, options] = args;
         const child = original(command, ["--require", preload, ...argv], options);
         child.on("message", (message: unknown) => {
-          if (isRecord(message) && message.type === "acceptance-renewal-held")
+          if (isRecord(message) && message.type === "acceptance-renewal-held") {
             entered.resolve(child);
+          }
         });
         return child;
       });
@@ -290,7 +291,9 @@ process.on("message", (message) => {
       const caller = new AbortController();
       const renewal = f.command(renew, caller.signal);
       const helper = await entered.promise;
-      if (cancelled) caller.abort();
+      if (cancelled) {
+        caller.abort();
+      }
       const observedRenewal = expect(renewal).rejects.toThrow(
         cancelled ? /aborted/i : /closed|identity changed/,
       );
