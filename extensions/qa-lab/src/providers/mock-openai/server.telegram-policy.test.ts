@@ -13,7 +13,13 @@ const { startMockServer } = createMockServerTestHarness();
 
 describe("Telegram policy hot-reload mock provider", () => {
   it("keeps the held turn active with the requested long marked response", async () => {
-    const server = await startMockServer({ telegramChannelStreamingPauseMs: 1 });
+    let releaseCompletion: (() => void) | undefined;
+    const completionGate = new Promise<void>((resolve) => {
+      releaseCompletion = resolve;
+    });
+    const server = await startMockServer({
+      telegramChannelStreamingPause: () => completionGate,
+    });
     const marker = "TG-RELOAD-root-a1b2c3d4";
     const prompt = `Write 40 numbered plain-text lines. Every line must contain ${marker} and the words hot reload keeps this conversation connected. Finish with a separate final line containing ${marker}-END. Do not use tools, Markdown, or explicit reply tags.`;
     const expected = [
@@ -40,6 +46,7 @@ describe("Telegram policy hot-reload mock provider", () => {
       streamed += decoder.decode(part?.value, { stream: true });
     }
     expect(streamed).not.toContain('"type":"response.output_text.done"');
+    releaseCompletion?.();
     while (!streamed.includes('"type":"response.completed"')) {
       const part = await reader?.read();
       if (part?.done) {
