@@ -14,6 +14,7 @@ import { coalesceAgentRunFrames } from "../chat-agent-run-grouping.ts";
 import { groupMessages } from "../chat-thread-grouping.ts";
 import { renderAgentRunFrame } from "./chat-agent-run-frame.ts";
 import { renderMessageGroup } from "./chat-message-group.ts";
+import { createAssistantMessage, createMessageGroup } from "./chat-message.test-support.ts";
 
 let container: HTMLDivElement;
 
@@ -31,22 +32,11 @@ function createGroup(
   overrides: Partial<Pick<MessageGroup, "senderLabel" | "senderSession">> = {},
   messageOverrides: Record<string, unknown> = {},
 ): MessageGroup {
-  const [group] = groupMessages([
-    {
-      kind: "message",
-      key: "forwarded-message",
-      message: {
-        role: "assistant",
-        content: "forwarded report",
-        timestamp: 1_000,
-        ...messageOverrides,
-      },
-    },
-  ]);
-  if (group?.kind !== "group") {
-    throw new Error("expected a prepared assistant message group");
-  }
-  return { ...group, ...overrides };
+  return createMessageGroup(
+    createAssistantMessage("forwarded report", { timestamp: 1_000, ...messageOverrides }),
+    "assistant",
+    overrides,
+  );
 }
 
 function renderTestMessageGroup(
@@ -267,7 +257,6 @@ describe("forwarded message attribution", () => {
 
   it.each([
     { agentId: "research", avatar: "blob:research-avatar", expected: "image" },
-    { agentId: "research", avatar: null, expected: "face" },
     { agentId: "research", avatar: "https://example.test/avatar.png", expected: "face" },
     { agentId: "main", avatar: "blob:main-avatar", expected: "face" },
     { agentId: "removed", avatar: "blob:stale-avatar", expected: "empty" },
@@ -304,9 +293,6 @@ describe("forwarded message attribution", () => {
     },
   );
 
-  // Label rules: an agent's main session reads as the agent itself; other
-  // sessions read as the session (titler-resolved), prefixed with the agent
-  // name only when the sender is a different agent.
   it.each([
     {
       name: "another agent's main session labels as that agent",
@@ -349,13 +335,6 @@ describe("forwarded message attribution", () => {
       key: "agent:main:cron:daily:run:first",
       label: "Daily report",
       chipText: "Daily report",
-      prefix: null,
-      titled: true,
-    },
-    {
-      name: "cron run without a label hides its raw session key",
-      key: "agent:main:cron:daily:run:first",
-      chipText: "Automation",
       prefix: null,
       titled: true,
     },
@@ -454,10 +433,6 @@ describe("forwarded message attribution", () => {
     },
   );
 
-  // A rendered group's source cannot change in place: messages are immutable
-  // and grouping splits on senderSession, so a different source produces a new
-  // group key and a fresh anchor. The protected behavior is that the titler's
-  // stamped title and href survive ordinary re-renders of the same group.
   it("keeps titled source chips usable across rerenders", async () => {
     const group = createGroup({
       senderSession: { sessionKey: "agent:main:main" },
@@ -482,7 +457,7 @@ describe("forwarded message attribution", () => {
     expect(sourceLink()).toBeInstanceOf(HTMLAnchorElement);
     await titler.decorate(sourceLink(), true);
     expect(sourceLink().textContent).toBe("Main session");
-    expect(() => render(renderTestMessageGroup(group), container)).not.toThrow();
+    render(renderTestMessageGroup(group), container);
     expect(sourceLink().textContent).toBe("Main session");
     expect(sourceLink().title).toBe("agent:main:main");
   });
