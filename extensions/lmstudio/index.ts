@@ -32,19 +32,12 @@ const loadSetup = createLazyRuntimeModule(() => import("./src/setup.js"));
 const setupMethod = createLazyRuntimeMethodBinder(loadSetup);
 
 function resolveLmstudioAugmentedCatalogEntries(config: OpenClawConfig | undefined) {
-  if (!config) {
-    return [];
-  }
-  return normalizeLmstudioConfiguredCatalogEntries(config.models?.providers?.lmstudio?.models).map(
+  return normalizeLmstudioConfiguredCatalogEntries(config?.models?.providers?.lmstudio?.models).map(
     (entry) => ({
+      ...entry,
       provider: PROVIDER_ID,
-      id: entry.id,
       name: entry.name ?? entry.id,
       compat: { ...entry.compat, supportsUsageInStreaming: true },
-      contextWindow: entry.contextWindow,
-      contextTokens: entry.contextTokens,
-      reasoning: entry.reasoning,
-      input: entry.input,
     }),
   );
 }
