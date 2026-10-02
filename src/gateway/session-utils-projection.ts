@@ -206,7 +206,7 @@ export function resolveGatewaySessionRuntimeProjection(params: {
   entry?: SessionEntry;
   preparedAcpMeta?: SessionEntry["acp"] | null;
   rowContext?: SessionListRowContext;
-  metadataSnapshot?: PluginMetadataSnapshot;
+  metadataSnapshot?: PluginMetadataSnapshot | null;
 }) {
   const { entry } = params;
   const acpMeta = params.preparedAcpMeta ?? undefined;

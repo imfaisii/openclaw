@@ -186,7 +186,7 @@ type GatewaySessionThinkingProjectionParams = {
   preparedAcpMeta?: SessionEntry["acp"] | null;
   modelCatalog?: ModelCatalogEntry[];
   modelCatalogRouteVariants?: readonly ModelCatalogEntry[];
-  metadataSnapshot?: PluginMetadataSnapshot;
+  metadataSnapshot?: PluginMetadataSnapshot | null;
   rowContext?: SessionListRowContext;
   providerPolicySource?: ThinkingProviderPolicySource;
 };
@@ -546,6 +546,7 @@ export function resolveSessionDisplayModelIdentityRefCached(params: {
   cfg: OpenClawConfig;
   provider?: string;
   model?: string;
+  metadataSnapshot?: PluginMetadataSnapshot | null;
   rowContext?: SessionListRowContext;
 }): { provider?: string; model?: string } {
   const ctx = params.rowContext;
@@ -557,7 +558,7 @@ export function resolveSessionDisplayModelIdentityRefCached(params: {
   const provider = normalizeOptionalString(params.provider);
   const model = normalizeOptionalString(params.model);
   let value = { provider, model };
-  if (provider && model && isCliProvider(provider, params.cfg)) {
+  if (provider && model && isCliProvider(provider, params.cfg, params.metadataSnapshot)) {
     const identity = (model.includes("/")
       ? parseModelRef(model, provider, {
           allowPluginNormalization: false,
@@ -570,6 +571,7 @@ export function resolveSessionDisplayModelIdentityRefCached(params: {
           runtime: identity.provider,
           config: params.cfg,
           includeSetupRegistry: true,
+          metadataSnapshot: params.metadataSnapshot,
         }) ?? identity.provider,
       model: identity.model,
     };

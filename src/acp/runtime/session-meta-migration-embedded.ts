@@ -33,12 +33,12 @@ import {
 } from "../../state/openclaw-agent-db.paths.js";
 import { runOpenClawStateWriteTransaction } from "../../state/openclaw-state-db.js";
 import { sanitizeOpenClawStateLeaseRows } from "../../state/openclaw-state-snapshot-sanitizer.js";
-import { selectAcpMigrationRowForStoreEntry } from "./session-meta-doctor-keys.js";
 import {
   buildAcpDatabaseSessionKey,
   selectAcpSessionRow,
   upsertAcpSessionMetaRow,
 } from "./session-meta-keys.js";
+import { selectAcpMigrationRowForStoreEntry } from "./session-meta-migration-keys.js";
 import { rowToAcpSessionMeta } from "./session-meta-readonly.js";
 import { resolveSessionStorePathForAcp } from "./session-meta-store.js";
 import { bindAcpSessionMeta } from "./session-meta-write.kernel.js";

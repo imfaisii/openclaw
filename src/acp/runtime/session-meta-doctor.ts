@@ -35,8 +35,6 @@ import {
 } from "../../state/openclaw-state-db.js";
 import { resolveOpenClawStateSqlitePath } from "../../state/openclaw-state-db.paths.js";
 import { sanitizeOpenClawStateLeaseRows } from "../../state/openclaw-state-snapshot-sanitizer.js";
-import { repairEmbeddedAcpSessionMetaForDoctor } from "./session-meta-doctor-embedded.js";
-import { legacyAcpSessionKeyCandidates } from "./session-meta-doctor-keys.js";
 import { captureAcpSessionEntryBinding } from "./session-meta-entry.kernel.js";
 import {
   acpSessionRowMatchesEntry,
@@ -47,6 +45,8 @@ import {
   selectAcpSessionRows,
   upsertAcpSessionMetaRow,
 } from "./session-meta-keys.js";
+import { repairEmbeddedAcpSessionMetaForDoctor } from "./session-meta-migration-embedded.js";
+import { legacyAcpSessionKeyCandidates } from "./session-meta-migration-keys.js";
 import type { AcpSessionRow } from "./session-meta-read.types.js";
 import { rowToAcpSessionMeta } from "./session-meta-readonly.js";
 import { resolveSessionStorePathForAcp } from "./session-meta-store.js";

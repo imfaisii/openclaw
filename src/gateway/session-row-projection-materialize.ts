@@ -9,6 +9,7 @@ import { resolveSessionKeyBySessionId } from "../config/sessions/session-accesso
 import { readCommittedIncognitoSessionSharing } from "../config/sessions/session-accessor.sqlite-incognito-sharing.js";
 import { projectSqliteSessionParticipants } from "../config/sessions/session-accessor.sqlite-participant-projection.js";
 import { listSessionMembers } from "../config/sessions/session-sharing-store.js";
+import { getCurrentPluginMetadataSnapshot } from "../plugins/current-plugin-metadata-snapshot.js";
 import { isIncognitoSessionKey } from "../routing/session-key.js";
 import type { SessionRowChange } from "../sessions/session-row-changes.js";
 import { freezeJsonSnapshot } from "../shared/immutable-data.js";
@@ -203,6 +204,17 @@ export function createSessionRowPublication(owner: {
   };
 }
 
+function readPreparedModelMetadata(cfg: records.Inputs["cfg"]) {
+  return (
+    getCurrentPluginMetadataSnapshot({
+      config: cfg,
+      allowSynchronousPolicyRead: false,
+      allowScopedSnapshot: true,
+      allowWorkspaceScopedSnapshot: true,
+    }) ?? null
+  );
+}
+
 /** Bind live projection state to the same prepared or resident source-read boundary. */
 export function createSessionRowModelFactsReader(params: {
   lookup: (query: records.Lookup) => records.Row | undefined;
@@ -217,9 +229,11 @@ export function createSessionRowModelFactsReader(params: {
     if (!row?.entry) {
       throw new Error("Session changed while preparing search facts; retry the request");
     }
+    const state = params.state();
     return readSessionRowModelFacts({
-      ...params.state(),
+      ...state,
       ...row,
+      preparedModelMetadata: readPreparedModelMetadata(state.cfg),
       source: {
         entry: row.storedEntry,
         readSourceEntry: (key) => params.readSourceEntry(row, key, metadataPrepared),
@@ -441,6 +455,7 @@ export function readResidentSessionRow(
     ...row,
     cfg,
     preparedAcpMeta: databaseFacts ? databaseFacts.acpMeta : row.preparedAcpMeta,
+    preparedModelMetadata: readPreparedModelMetadata(cfg),
     preparedRepositoryWorkspace: databaseFacts
       ? databaseFacts.repositoryWorkspace
       : params.repositoryWorkspace,

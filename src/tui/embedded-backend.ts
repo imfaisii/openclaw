@@ -245,22 +245,36 @@ export class EmbeddedTuiBackend implements TuiBackend {
       this.emit(event.event, event.payload);
     });
     const config = getRuntimeConfig();
+    let pendingConfig = config;
+    let storesReady = false;
     this.unsubscribeConfigWrites = registerConfigWriteListener((event) => {
-      this.preparedModelRuntime.publish(event.runtimeConfig);
+      pendingConfig = event.runtimeConfig;
+      if (storesReady) {
+        this.preparedModelRuntime.publish(pendingConfig);
+      }
     });
-    this.preparedModelRuntime.publish(config);
     // Local mode shares the Gateway's session-store readiness checks.
     this.sessionProjection = (async () => {
       const { runSessionStartupMigration } =
         await import("../config/sessions/startup-migration.js");
-      await runSessionStartupMigration({
-        cfg: config,
-        env: process.env,
-        log: embeddedSessionStartupMigrationLog,
-      });
+      for (;;) {
+        const admittingConfig = pendingConfig;
+        await runSessionStartupMigration({
+          cfg: admittingConfig,
+          env: process.env,
+          log: embeddedSessionStartupMigrationLog,
+        });
+        if (admittingConfig === pendingConfig) {
+          break;
+        }
+      }
+      // Startup closes cold stores before model readers acquire their runtime custody.
+      storesReady = true;
+      this.preparedModelRuntime.publish(pendingConfig);
       return createSessionRowProjection({ cfg: getRuntimeConfig(), getConfig: getRuntimeConfig });
     })();
     this.ready = this.sessionProjection.then(() => {});
+    void this.ready.catch(() => {});
     this.unbindSessionProjection = bindEmbeddedSessionRowProjection(this.sessionProjection);
     queueMicrotask(() => {
       this.onConnected?.();

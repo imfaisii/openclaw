@@ -17,12 +17,12 @@ import {
   resolveOpenClawAgentSqlitePath,
 } from "../../state/openclaw-agent-db.paths.js";
 import { executeExistingOpenClawStateRead } from "../../state/openclaw-state-db-readonly.js";
-import { legacyAcpSessionKeyCandidates } from "./session-meta-doctor-keys.js";
 import {
   acpSessionRowMatchesEntry,
   buildAcpDatabaseSessionKey,
   parseAcpDatabaseSessionKey,
 } from "./session-meta-keys.js";
+import { legacyAcpSessionKeyCandidates } from "./session-meta-migration-keys.js";
 import { resolveSessionStorePathForAcp } from "./session-meta-store.js";
 
 function migrationRequired(source: string): never {

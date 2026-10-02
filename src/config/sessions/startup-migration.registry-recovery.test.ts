@@ -143,6 +143,7 @@ it.each([false, true])(
     }
     setCanonicalSqliteSessionMainKey(survivor, "previous");
     setCanonicalSqliteSessionMainKey(deleted, "previous");
+    await closeOpenClawAgentDatabasesAsync(stateDir);
     closeOpenClawAgentDatabasesForTest();
     const deletion = beginAgentDeletionJournal(
       {
@@ -198,6 +199,7 @@ it("observes committed deletion before startup handoff after canonical database 
     { sessionId: "retained-session", updatedAt: 1 },
   );
   setCanonicalSqliteSessionMainKey(database, "previous");
+  await closeOpenClawAgentDatabasesAsync(stateDir);
   closeOpenClawAgentDatabasesForTest();
   expect(readAgentDatabaseAdmissionRefusal("alpha", { env })).toBeUndefined();
 

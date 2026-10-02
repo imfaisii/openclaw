@@ -980,25 +980,59 @@ describe("EmbeddedTuiBackend", () => {
     });
   });
 
-  it("publishes the configured runtime before admitting the first local turn", async () => {
+  it("joins store admission before publishing the latest runtime and admitting the first local turn", async () => {
     const initialConfig = { agents: { list: [{ id: "main" }] } };
+    const latestConfig = { agents: { defaults: { model: "openai/latest" } } };
     getRuntimeConfigMock.mockReturnValue(initialConfig);
+    const admissionStarted = deferred<void>();
+    const admission = deferred<void>();
+    runSessionStartupMigrationMock.mockImplementationOnce(() => {
+      admissionStarted.resolve();
+      return admission.promise;
+    });
+    const publicationStarted = deferred<void>();
     const publication = deferred<void>();
-    refreshPreparedModelRuntimeSnapshotsMock.mockReturnValueOnce(publication.promise);
+    refreshPreparedModelRuntimeSnapshotsMock.mockImplementationOnce(() => {
+      publicationStarted.resolve();
+      return publication.promise;
+    });
+    const turnStarted = deferred<void>();
+    agentCommandFromIngressMock.mockImplementationOnce(async () => {
+      turnStarted.resolve();
+      return { payloads: [], meta: {} };
+    });
 
     const backend = new EmbeddedTuiBackend();
     backend.start();
 
     const send = sendMainChat(backend, "hello", "run-waits-for-published-runtime");
-    await flushMicrotasks();
+    try {
+      await admissionStarted.promise;
+      expect(refreshPreparedModelRuntimeSnapshotsMock).not.toHaveBeenCalled();
+      getRuntimeConfigMock.mockReturnValue(latestConfig);
+      configWriteListener?.({ runtimeConfig: latestConfig });
+      expect(refreshPreparedModelRuntimeSnapshotsMock).not.toHaveBeenCalled();
+      expect(agentCommandFromIngressMock).not.toHaveBeenCalled();
 
-    expect(refreshPreparedModelRuntimeSnapshotsMock).toHaveBeenCalledWith(initialConfig);
-    expect(agentCommandFromIngressMock).not.toHaveBeenCalled();
-
-    publication.resolve();
-    await send;
-    await vi.waitFor(() => expect(agentCommandFromIngressMock).toHaveBeenCalledTimes(1));
-    await backend.stop();
+      admission.resolve();
+      await publicationStarted.promise;
+      expect(runSessionStartupMigrationMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cfg: latestConfig }),
+      );
+      expect(refreshPreparedModelRuntimeSnapshotsMock).toHaveBeenCalledExactlyOnceWith(
+        latestConfig,
+      );
+      expect(agentCommandFromIngressMock).not.toHaveBeenCalled();
+      publication.resolve();
+      await send;
+      await turnStarted.promise;
+      expect(agentCommandFromIngressMock).toHaveBeenCalledTimes(1);
+    } finally {
+      admission.resolve();
+      publication.resolve();
+      await send.catch(() => {});
+      await backend.stop();
+    }
   });
 
   it("queues config runtime publication ahead of later local turns and unregisters on stop", async () => {
@@ -1535,13 +1569,18 @@ describe("EmbeddedTuiBackend", () => {
   });
 
   it("reports publication failure instead of returning stale model choices", async () => {
+    const publishing = deferred<void>();
     const publication = deferred<void>();
-    refreshPreparedModelRuntimeSnapshotsMock.mockReturnValueOnce(publication.promise);
+    refreshPreparedModelRuntimeSnapshotsMock.mockImplementationOnce(() => {
+      publishing.resolve();
+      return publication.promise;
+    });
     const backend = new EmbeddedTuiBackend();
     backend.start();
     const choices = backend.listModels({ agentId: "work" });
     const failure = expect(choices).rejects.toThrow("catalog publication failed");
 
+    await publishing.promise;
     publication.reject(new Error("catalog publication failed"));
     await failure;
     expect(withPreparedModelCatalogOwnerMock).not.toHaveBeenCalled();

@@ -51,7 +51,7 @@ export function resolveWorkerPlacementModelRuntime(
     provider: string;
     model: string;
     preparedEnvironment?: NodeJS.ProcessEnv;
-    metadataSnapshot?: PluginMetadataSnapshot;
+    metadataSnapshot?: PluginMetadataSnapshot | null;
   },
 ): string {
   const sessionRuntimeOverride = resolveSessionRuntimeOverrideForProvider(params);
@@ -72,6 +72,8 @@ export function resolveWorkerPlacementModelRuntime(
       ? undefined
       : resolveCliRuntimeExecutionProvider({
           ...params,
+          metadataSnapshot:
+            params.metadataSnapshot === null ? { plugins: [] } : params.metadataSnapshot,
           modelId: params.model,
           authProfileId: params.entry.authProfileOverride,
           preparedAuthDirectories: {
