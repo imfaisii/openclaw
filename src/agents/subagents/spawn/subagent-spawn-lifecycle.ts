@@ -2,6 +2,38 @@ import type { SubagentLifecycleHookRunner } from "../../../plugins/hooks.js";
 import type { DeliveryContext } from "../../../utils/delivery-context.types.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
 
+export async function emitSubagentSpawnFailureHook(params: {
+  hookRunner: SubagentLifecycleHookRunner;
+  childSessionKey: string;
+  requesterSessionKey: string;
+  runId: string;
+  accountId?: string;
+}): Promise<boolean> {
+  try {
+    await params.hookRunner.runSubagentEnded(
+      {
+        targetSessionKey: params.childSessionKey,
+        targetKind: "subagent",
+        reason: "spawn-failed",
+        sendFarewell: true,
+        accountId: params.accountId,
+        runId: params.runId,
+        outcome: "error",
+        error: "Session failed to start",
+      },
+      {
+        runId: params.runId,
+        childSessionKey: params.childSessionKey,
+        requesterSessionKey: params.requesterSessionKey,
+      },
+    );
+    return true;
+  } catch {
+    // Spawn cleanup continues even when presentation hooks fail.
+    return false;
+  }
+}
+
 export function createSubagentSpawnLifecycleEmitter(params: {
   hookRunner: SubagentLifecycleHookRunner | null;
   childSessionKey: string;

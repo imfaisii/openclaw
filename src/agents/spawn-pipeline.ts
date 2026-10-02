@@ -6,6 +6,7 @@ type SpawnPipelinePhase = "initialize" | "dispatch" | "register";
 
 export type SpawnBackendAdapter<TState> = {
   initialize(): Promise<TState>;
+  retainRegistrationScope?(scope: SubagentRegistrationScope): void;
   dispatchTurn(state: TState): Promise<{ runId: string }>;
   cleanupOnFailure(params: {
     phase: SpawnPipelinePhase;
@@ -78,6 +79,7 @@ export async function runSpawnPipeline<TState>(
         retainOwnership: registration.queued
           ? (scope) => {
               registrationScope = scope;
+              params.adapter.retainRegistrationScope?.(scope);
             }
           : undefined,
       });
