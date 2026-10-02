@@ -14,7 +14,6 @@ import { openOpenClawStateDatabase } from "../../state/openclaw-state-db.js";
 import { withOpenClawTestState } from "../../test-utils/openclaw-test-state.js";
 import { replaceSessionEntrySync } from "./session-accessor.js";
 import { resolveSqliteSessionKey } from "./session-accessor.sqlite-scope.js";
-import { SessionCanonicalKeyMigrationRequiredError } from "./session-canonical-row.js";
 import { runSessionStartupMigration } from "./startup-migration.js";
 
 it("startup requires offline ACP repair before handing restored stores to runtime", async () => {
@@ -104,11 +103,9 @@ it("startup requires offline ACP repair before handing restored stores to runtim
         });
       }
       if (shape === "unsettled-embedded") {
-        await expect(startup()).rejects.toThrow(
-          new SessionCanonicalKeyMigrationRequiredError(
-            `invalid persisted session row requires repair for ${sessionKey}`,
-          ),
-        );
+        await expect(startup()).rejects.toMatchObject({
+          message: `invalid persisted session row requires repair for ${sessionKey}; stop the Gateway and run openclaw doctor --fix`,
+        });
       } else {
         await expect(startup()).rejects.toThrow('run "openclaw doctor --fix"');
       }

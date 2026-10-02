@@ -15,6 +15,7 @@ import * as stateReads from "../../state/openclaw-state-db-readonly.js";
 import { withOpenClawTestState } from "../../test-utils/openclaw-test-state.js";
 import type { ControlUiSessionPreview } from "../control-ui-contract.js";
 import { bindSessionRowProjection } from "../session-row-projection-access.js";
+import * as sessionRows from "../session-row-projection-record.js";
 import { createSessionRowProjection } from "../session-row-projection.js";
 import { createControlUiRequestOptions } from "./control-ui-request.test-support.js";
 import { controlUiHandlers, createControlUiHandlers } from "./control-ui.js";
@@ -238,7 +239,11 @@ describe("controlUi.sessionPreview", () => {
       };
       for (const agentId of ["main", "research"]) {
         const scope = { agentId, sessionKey: "global", sessionId: `hover-${agentId}` };
-        await replaceSessionEntry(scope, { sessionId: scope.sessionId, updatedAt: 42 });
+        await replaceSessionEntry(scope, {
+          sessionId: scope.sessionId,
+          updatedAt: 42,
+          displayName: `Title from ${agentId}`,
+        });
         await persistSessionTranscriptTurn(scope, {
           cwd: "/tmp",
           updateMode: "none",
@@ -249,7 +254,23 @@ describe("controlUi.sessionPreview", () => {
         createControlUiHandlers()["controlUi.sessionPreview"],
         "session preview handler",
       );
+      const publications = new Map([
+        ["main", createDeferred()],
+        ["research", createDeferred()],
+      ]);
+      const publishTranscriptFields = sessionRows.publishTranscriptFields;
+      const publication = vi
+        .spyOn(sessionRows, "publishTranscriptFields")
+        .mockImplementation((row, ...args) => {
+          const changed = publishTranscriptFields(row, ...args);
+          if (row.key === "global" && row.lastMessagePreview === `Title from ${row.agentId}`) {
+            publications.get(row.agentId)?.resolve();
+          }
+          return changed;
+        });
+      onTestFinished(() => publication.mockRestore());
       const context = await createPreviewContext(cfg);
+      await Promise.all([...publications.values()].map((completion) => completion.promise));
       const statements = observeHostDataSql();
       onTestFinished(() => statements.restore());
       for (const agentId of ["main", "research"]) {

@@ -316,7 +316,7 @@ export async function noteSessionTranscriptHealth(options?: {
     deliveryReport = repairCanonicalSessionDeliveryStates(rowRepairParams);
     repairLegacySessionExecPolicy(rowRepairParams);
     acpKeyReport = await repairAcpSessionMetaKeysForDoctor({
-      ...repairParams,
+      ...rowRepairParams,
       authority: maintenanceAuthority,
     });
     titleReport = await repairLegacySessionTitles({

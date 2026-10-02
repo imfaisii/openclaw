@@ -49,7 +49,6 @@ import {
 } from "./server-methods/sessions-read-cache.test-support.js";
 import { prepareGatewaySessionAccessAuthority } from "./session-access-authority.js";
 import { retainSessionListForegroundWork } from "./session-projection-work.js";
-import { readSessionRowModelFacts } from "./session-row-model-facts.js";
 import { withReadySessionRows } from "./session-row-prepared-read.js";
 import { bindSessionRowProjection } from "./session-row-projection-access.js";
 import * as records from "./session-row-projection-record.js";
@@ -843,16 +842,11 @@ it("keeps the stored main address and ACP runtime after mainKey changes", async 
     let projection: SessionRowProjection | undefined;
     try {
       projection = await createSessionRowProjection({ cfg: cfgAfter, modelCatalog: [] });
-      const facts = readSessionRowModelFacts({
-        cfg: cfgAfter,
-        key: target.sessionKey,
-        agentId: target.agentId,
-        entry: stored,
-        source: { entry: stored, readSourceEntry: () => undefined },
-        rowContext: projection.state.rowContext,
-        modelCatalog: [],
-      });
-      expect(facts.thinkingProjection.acpMeta).toEqual(meta);
+      await projection.ensureMaterialized();
+      expect(
+        projection.describe({ agentId: target.agentId, key: target.sessionKey })?.materialized
+          .source.thinkingProjection.acpMeta,
+      ).toEqual(meta);
       const result = await listProjectedSessions({ projection, opts: { agentId: "main" } });
       expect(result.sessions).toEqual([
         expect.objectContaining({

@@ -134,6 +134,9 @@ function createSessionPatchHandler(
         context,
         diagnostics,
         operatorAuthority: preparingOperator,
+        onCreatedSessionCommitted: request.many
+          ? undefined
+          : sessionMutationAuthorization?.recordCreatedSession,
         patch,
         targets: targets.map((target) => ({
           ...target,

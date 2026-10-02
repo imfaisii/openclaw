@@ -19,7 +19,7 @@ import {
   prepareLegacyAcpMigrationSource,
   recordLegacyAcpMigrationCompletion,
 } from "../../infra/legacy-acp-migration-source.js";
-import { listExistingAgentDatabaseTargets } from "../../infra/session-sqlite-migration-readers.js";
+import type { ExistingAgentDatabaseTarget } from "../../infra/session-sqlite-migration-readers.js";
 import { createVerifiedSqliteSnapshot } from "../../infra/sqlite-snapshot.js";
 import {
   assertExistingDatabaseIdentity,
@@ -60,9 +60,15 @@ export async function repairEmbeddedAcpSessionMetaForDoctor(params: {
   env: NodeJS.ProcessEnv;
   apply: boolean;
   authority?: DoctorSqliteMaintenanceAuthority;
+  targets: readonly ExistingAgentDatabaseTarget[];
 }) {
-  const report = { found: 0, repaired: 0, backups: [] as string[], warnings: [] as string[] };
-  for (const target of listExistingAgentDatabaseTargets(params.cfg, params.env)) {
+  const report: { found: number; repaired: number; backups: string[]; warnings: string[] } = {
+    found: 0,
+    repaired: 0,
+    backups: [],
+    warnings: [],
+  };
+  for (const target of params.targets) {
     params.authority?.assertCurrent();
     const scope = { agentId: target.agentId, storePath: target.storePath, env: params.env };
     const entries = new Map<string, SessionEntry>();

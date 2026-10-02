@@ -8,10 +8,14 @@ import {
   resolveSqliteScope,
   toDatabaseOptions,
 } from "../../config/sessions/session-accessor.sqlite-scope.js";
+import { resolvePersistedSessionStoreOwner } from "../../config/sessions/session-store-owner.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { executeSqliteQuerySync } from "../../infra/kysely-sync.js";
-import { listExistingAgentDatabaseTargets } from "../../infra/session-sqlite-migration-readers.js";
+import {
+  listExistingAgentDatabaseTargets,
+  type ExistingAgentDatabaseTarget,
+} from "../../infra/session-sqlite-migration-readers.js";
 import { createVerifiedSqliteSnapshot } from "../../infra/sqlite-snapshot.js";
 import {
   assertExistingDatabaseIdentity,
@@ -67,6 +71,7 @@ export async function repairAcpSessionMetaKeysForDoctor(params: {
   env: NodeJS.ProcessEnv;
   apply: boolean;
   authority?: DoctorSqliteMaintenanceAuthority;
+  targets?: readonly ExistingAgentDatabaseTarget[];
 }): Promise<AcpSessionKeyRepairReport> {
   const result: AcpSessionKeyRepairReport = {
     found: 0,
@@ -78,6 +83,7 @@ export async function repairAcpSessionMetaKeysForDoctor(params: {
     throw new Error("ACP key repair requires Doctor SQLite maintenance authority.");
   }
   params.authority?.assertCurrent();
+  const targets = params.targets ?? listExistingAgentDatabaseTargets(params.cfg, params.env);
   const sourcePath = resolveOpenClawStateSqlitePath(params.env);
   const sourceIdentity = readDatabasePathIdentitySync(sourcePath);
   const assertSourceCurrent = () => {
@@ -95,10 +101,7 @@ export async function repairAcpSessionMetaKeysForDoctor(params: {
     }
     result.scannedRows = rows.length;
     const candidateAgentIds = [
-      ...new Set([
-        ...listAgentIds(params.cfg),
-        ...listExistingAgentDatabaseTargets(params.cfg, params.env).map((target) => target.agentId),
-      ]),
+      ...new Set([...listAgentIds(params.cfg), ...targets.map((target) => target.agentId)]),
     ];
     const groups = new Map<
       string,
@@ -301,7 +304,7 @@ export async function repairAcpSessionMetaKeysForDoctor(params: {
       }
     }
   }
-  const embedded = await repairEmbeddedAcpSessionMetaForDoctor(params);
+  const embedded = await repairEmbeddedAcpSessionMetaForDoctor({ ...params, targets });
   result.found += embedded.found;
   result.repaired += embedded.repaired;
   result.warnings.push(...embedded.warnings);
@@ -317,6 +320,10 @@ function isRetiredClaimOwner(
   config: OpenClawConfig,
   target: { agentId: string; sessionKey: string },
 ): boolean {
+  const storeOwner = resolvePersistedSessionStoreOwner(config);
+  if (storeOwner.kind === "retired" && storeOwner.agentId === target.agentId) {
+    return true;
+  }
   const parsed = parseAgentSessionKey(target.sessionKey);
   const freeAcp = parsed?.rest.startsWith("acp:") && !parsed.rest.startsWith("acp:binding:");
   return !listAgentIds(config).includes(target.agentId) && !freeAcp;

@@ -223,7 +223,12 @@ describe("chat history sharing projection", () => {
             expect.objectContaining({
               sessionInfo: expect.objectContaining({
                 runtimeSelectionLocked: true,
-                agentRuntime: { id: "acpx", source: "session-key" },
+                agentRuntime: {
+                  id: "acpx",
+                  source: "session-key",
+                  cloudPlacementSupported: false,
+                  devicePlacementSupported: false,
+                },
               }),
             }),
           );
