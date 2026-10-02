@@ -87,7 +87,7 @@ export function findRetiredConfigUpgradeRequirement(
   const channels = isRecord(config.channels) ? config.channels : {};
   checkKeys(config.gateway, "gateway", ["webchat"]);
   checkKeys(channels, "channels", ["webchat"]);
-  checkKeys(channels.telegram, "channels.telegram", ["requireMention"]);
+  checkKeys(channels.telegram, "channels.telegram", ["requireMention", "groupMentionsOnly"]);
   visitChannelEntries(config, "telegram", (scope, configPath) => {
     checkKeys(scope, configPath, [
       "streamMode",

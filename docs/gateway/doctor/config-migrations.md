@@ -92,6 +92,7 @@ Doctor also refuses these retired config inputs:
 - Top-level `heartbeat`, `routing.allowFrom`, and `routing.groupChat`.
 - `channels.telegram.requireMention`, `channels.feishu.accounts.<id>.botName`,
   and the retired `channels.webchat` section.
+- `channels.telegram.groupMentionsOnly`; use `channels.telegram.groups["*"].requireMention`.
 - `session.threadBindings.ttlHours` and Discord/LINE/Matrix/Telegram `threadBindings.ttlHours`,
   including per-account settings.
 - Telegram `dm`, `direct.*.threadReplies`, native draft preview settings, and scalar
