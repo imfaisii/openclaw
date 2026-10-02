@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isFutureDateTimestampMs } from "@openclaw/normalization-core/number-coercion";
+import { racePromiseWithAbortSignal } from "../infra/abort-signal.js";
 import { PluginRuntimeCloseCompletedError } from "../plugins/runtime-close-error.js";
 import { createDeferredCore } from "../shared/deferred.js";
 import { resolveGlobalSingleton } from "../shared/global-singleton.js";
@@ -202,11 +203,12 @@ export async function waitForChatAbortControllerRemoval<
     projectSessionTerminalPending?: boolean;
     projectSessionTerminalPersistence?: Promise<void>;
   },
->(params: {
-  entries: ReadonlyMap<string, TEntry>;
-  targets: ReadonlyArray<{ runId: string; entry: TEntry }>;
-  timeoutMs: number;
-}): Promise<boolean> {
+>(
+  params: {
+    entries: ReadonlyMap<string, TEntry>;
+    targets: ReadonlyArray<{ runId: string; entry: TEntry }>;
+  } & ({ timeoutMs: number; signal?: never } | { timeoutMs: null; signal: AbortSignal }),
+): Promise<boolean> {
   const terminalOwnersSettled = () =>
     params.targets.every(({ entry }) => isChatAbortTerminalPersistenceSettled(entry));
   const registeredWaiters: Array<{ entry: TEntry; resolve: () => void }> = [];
@@ -242,7 +244,10 @@ export async function waitForChatAbortControllerRemoval<
   }
   try {
     const settled = Promise.all(settlements);
-    const removed = await settlesWithin(settled, Math.max(0, params.timeoutMs));
+    const removed =
+      params.timeoutMs === null
+        ? await racePromiseWithAbortSignal(settled, params.signal).then(() => true)
+        : await settlesWithin(settled, Math.max(0, params.timeoutMs));
     // Maintenance may retire a registration before its write settles. Registry
     // removal alone must not let a lifecycle mutation bypass that terminal owner.
     return removed && (await settled).every(Boolean) && terminalOwnersSettled();

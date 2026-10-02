@@ -133,9 +133,13 @@ it.each(["fulfilled", "rejected"] as const)(
   },
 );
 
-it.each(["settled", "pending", "writing", "failed", "dispatch-failed"] as const)(
-  "self-drain preserves %s terminal ownership and still joins its sibling",
-  async (state) => {
+it.each(
+  (["settled", "pending", "writing", "failed", "dispatch-failed"] as const).flatMap((state) =>
+    [false, true].map((unbounded) => ({ state, unbounded })),
+  ),
+)(
+  "self-drain preserves $state terminal ownership and still joins its sibling (unbounded=$unbounded)",
+  async ({ state, unbounded }) => {
     const { entries, runId, entry, registration } = registeredRun();
     const sibling = registerChatAbortController({
       chatAbortControllers: entries,
@@ -176,13 +180,16 @@ it.each(["settled", "pending", "writing", "failed", "dispatch-failed"] as const)
             failure: { error: new Error("terminal dispatch failed") },
           });
         }
+        const waitOptions = unbounded
+          ? { timeoutMs: null, signal: new AbortController().signal }
+          : { timeoutMs: 1_000 };
         const draining = waitForChatAbortControllerRemoval({
           entries,
           targets: [
             { runId, entry },
             { runId: "sibling-tail", entry: siblingEntry },
           ],
-          timeoutMs: 1_000,
+          ...waitOptions,
         });
         selectedSibling.resolve();
         expect(await draining).toBe(state === "settled");
@@ -202,6 +209,60 @@ it.each(["settled", "pending", "writing", "failed", "dispatch-failed"] as const)
     }
     await Promise.all([ownWork, siblingWork]);
     expect(entries.size).toBe(0);
+  },
+);
+
+it.each(["before waiting", "while waiting"] as const)(
+  "cancels an unbounded removal wait %s without retiring raw execution",
+  async (when) => {
+    const { entries, runId, entry, registration } = registeredRun();
+    const finish = createDeferred();
+    const execution = runWithChatAbortExecution(
+      entry,
+      async () => {
+        registration.cleanup();
+        await finish.promise;
+      },
+      registration.cleanup,
+    );
+    const cancellation = new AbortController();
+    const reason = new Error("Removal wait owner retired");
+    if (when === "before waiting") {
+      cancellation.abort(reason);
+    }
+    try {
+      const draining = waitForChatAbortControllerRemoval({
+        entries,
+        targets: [{ runId, entry }],
+        timeoutMs: null,
+        signal: cancellation.signal,
+      });
+      const rejected = expect(draining).rejects.toMatchObject({
+        name: "AbortError",
+        cause: reason,
+      });
+      if (when === "while waiting") {
+        cancellation.abort(reason);
+      }
+      await rejected;
+      expect(entries.get(runId)).toBe(entry);
+      expect(entry.executionSettlement?.status).toBe("pending");
+      expect(entry.controller.signal.aborted).toBe(false);
+
+      const resumed = waitForChatAbortControllerRemoval({
+        entries,
+        targets: [{ runId, entry }],
+        timeoutMs: null,
+        signal: new AbortController().signal,
+      });
+      finish.resolve();
+      await execution;
+      expect(await resumed).toBe(true);
+      expect(entries.has(runId)).toBe(false);
+    } finally {
+      finish.resolve();
+      await execution;
+    }
   },
 );
 
