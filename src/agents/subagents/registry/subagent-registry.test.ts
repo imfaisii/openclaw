@@ -11,6 +11,7 @@ import {
   runWithOwnedSessionTranscriptWrite,
   withOwnedSessionTranscriptWrites,
 } from "../../../config/sessions/transcript-write-context.js";
+import type { ChatAbortControllerEntry } from "../../../gateway/chat-abort.types.js";
 import type { GatewayRecoveryRuntime } from "../../../gateway/server-instance-runtime.types.js";
 import type { AgentEventPayload } from "../../../infra/agent-events.js";
 import { createEmptyPluginRegistry } from "../../../plugins/registry-empty.js";
@@ -226,6 +227,7 @@ describe("subagent registry seam flow", () => {
   };
   const activateRegistry = async () => {
     const gatewayContext = {
+      chatAbortControllers: new Map<string, ChatAbortControllerEntry>(),
       recoveryRuntime,
       resolveGatewayContext: () => gatewayContext as never,
     };

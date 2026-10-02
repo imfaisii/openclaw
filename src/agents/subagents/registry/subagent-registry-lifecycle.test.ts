@@ -226,10 +226,6 @@ vi.mock("../../../runtime.js", () => ({
   },
 }));
 
-vi.mock("../../../utils/delivery-context.shared.js", () => ({
-  normalizeDeliveryContext: (origin: unknown) => origin ?? "agent",
-}));
-
 vi.mock("../announce/subagent-announce.js", () => ({
   captureSubagentCompletionReply: vi.fn(async () => undefined),
   runSubagentAnnounceFlow: vi.fn(async () => "retryable" as const),
