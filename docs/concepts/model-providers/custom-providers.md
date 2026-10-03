@@ -305,7 +305,7 @@ See [/providers/llmman](/providers/llmman) for setup, hybrid local + hosted rout
 }
 ```
 
-`grok-4.6` (500K context) works on any account the same way; `grok-4.7` needs a Basic or higher Grokified plan and returns a 403 `plan_capability_required` without one. See the [Grokified OpenClaw guide](https://grokified.com/openclaw) for account setup.
+A new account's free signup credit works on the API with no card and no separate activation step. Until the account buys credit, each request is capped at 32,000 input tokens and a larger one returns a 413 `free_tier_request_too_large`; buying credit removes the cap. `grok-4.6` (500K context) is configured the same way; `grok-4.7` needs a Basic or higher Grokified plan and returns a 403 `plan_capability_required` without one. See the [Grokified OpenClaw guide](https://grokified.com/openclaw) for account setup.
 
 ### LM Studio
 
