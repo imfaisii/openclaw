@@ -251,7 +251,7 @@ export function createTalkRealtimeRelaySession(
         if (!getActiveRelay() || outputOwnership.suppressingOutput) {
           return;
         }
-        const outputTurnId = outputOwnership.resolve(true);
+        const outputTurnId = outputOwnership.resolveAudio(audio, bridgeRef.current?.bridge);
         if (!outputTurnId) {
           return;
         }

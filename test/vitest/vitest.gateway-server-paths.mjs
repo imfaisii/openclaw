@@ -243,6 +243,7 @@ export const gatewayDatabaseWorkerTestFiles = [
   "src/gateway/startup-local-cli-pairing.test.ts",
   "src/gateway/talk/client-authority.test.ts",
   "src/gateway/talk/handlers/client-native-actions.test.ts",
+  "src/gateway/talk/relay/continuous-output-admission.test.ts",
   "src/gateway/talk/relay/index.test.ts",
   "src/gateway/test-helpers.acquisition.test.ts",
   "src/gateway/tool-resolution.cron-capture.test.ts",
