@@ -360,7 +360,7 @@ return "";
 // unsignalable, e.g. macOS SIP-protected same-uid processes on shared static-ssh dev hosts)
 // must not crash cleanup/resume paths, but a freeze target that returns EPERM stays counted
 // as live so quiescence fails closed instead of reporting a still-running process as frozen.
-export const REMOTE_WORKSPACE_QUIESCE_JS = String.raw`${REMOTE_QUIESCENCE_CONTEXT_JS}
+const REMOTE_WORKSPACE_QUIESCE_JS = String.raw`${REMOTE_QUIESCENCE_CONTEXT_JS}
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
 fs.mkdirSync(leaseDirectory, { recursive: true, ...(process.platform === "win32" ? {} : { mode: 0o700 }) });
 if (process.platform !== "win32") fs.chmodSync(leaseDirectory, 0o700);
@@ -680,11 +680,11 @@ ${REMOTE_QUIESCENCE_LEASE_JS}
 ${REMOTE_QUIESCENCE_PS_JS}
 ${REMOTE_QUIESCENCE_CONTROL_JS}`;
 
-export const REMOTE_WORKSPACE_RENEW_QUIESCENCE_JS = String.raw`${REMOTE_QUIESCENCE_CONTROL_CONTEXT_JS}
+const REMOTE_WORKSPACE_RENEW_QUIESCENCE_JS = String.raw`${REMOTE_QUIESCENCE_CONTROL_CONTEXT_JS}
 process.stdout.write(renewWorkspaceLease(Number(process.argv[3] || 12 * 60 * 1000), process.argv[4] || "final", process.argv[5] || "dedicated"));
 `;
 
-export const REMOTE_WORKSPACE_RESUME_JS = String.raw`${REMOTE_QUIESCENCE_CONTROL_CONTEXT_JS}
+const REMOTE_WORKSPACE_RESUME_JS = String.raw`${REMOTE_QUIESCENCE_CONTROL_CONTEXT_JS}
 process.stdout.write(resumeWorkspaceLease(process.argv[3] === "owned"));
 `;
 
