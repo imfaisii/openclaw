@@ -79,6 +79,18 @@ describe("Telegram policy hot-reload mock provider", () => {
     expect(lastDeltaIndex).toBeGreaterThanOrEqual(0);
     expect(doneIndex).toBeGreaterThan(lastDeltaIndex ?? -1);
     expect(resolveTelegramChannelStreamingPause(prompt)).toEqual({ previewPauseMs: 3_000 });
+
+    const decoratedPrompt = `[Telegram direct message from QA Operator]\n${prompt}\n[message_id: 42]`;
+    expect(
+      buildChannelStreamingFixtureEvents({
+        currentPrompt: decoratedPrompt,
+        allInputText: decoratedPrompt,
+        hasCompletedToolOutput: false,
+      }),
+    ).toBeDefined();
+    expect(resolveTelegramChannelStreamingPause(decoratedPrompt)).toEqual({
+      previewPauseMs: 3_000,
+    });
   });
 
   it("does not capture unrelated numbered-line prompts", () => {

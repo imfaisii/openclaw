@@ -201,6 +201,7 @@ export const telegramRichObservationCases = [
   "duplicate-run-message",
   "lost-literal-ancestor",
   "emoji-degraded",
+  "emoji-wrapper-lost",
   "first-content-failed",
   "send-error",
 ] as const;
@@ -210,9 +211,13 @@ export async function assertTelegramRichObservationFlow(
 ) {
   const fixtureRunId = "00000000-0000-4000-8000-000000000000";
   const delayedKind = testCase === "message" ? "message" : "edit";
-  const rejects = !["message", "edit", "oversized-tree", "unmatched-after-reset"].includes(
-    testCase,
-  );
+  const rejects = ![
+    "message",
+    "edit",
+    "oversized-tree",
+    "unmatched-after-reset",
+    "emoji-degraded",
+  ].includes(testCase);
   const staleSend = testCase === "stale-send" || testCase === "untyped-stale-send";
   const untyped = testCase === "missing-content-type" || testCase === "untyped-stale-send";
   const flattenedIndex = ["flattened-details", "flattened-list", "flattened-quote"].indexOf(
@@ -317,11 +322,13 @@ export async function assertTelegramRichObservationFlow(
               ? paragraph(wrap("richTextBold", plain("literal")))
               : testCase === "lost-literal-ancestor" && id === 11
                 ? literalScope(wrap("richTextSuperscript", wrap("richTextBold", plain("x"))))
-                : testCase === "emoji-degraded" && id === 6
-                  ? paragraph(url(plain("👋")))
-                  : testCase === "first-content-failed" && id === 1 && kind === "message"
-                    ? paragraph(plain("Download"))
-                    : block,
+                : testCase === "emoji-degraded" && (id === 6 || id === 7)
+                  ? paragraph(id === 6 ? url(plain("👋")) : wrap("richTextSpoiler", plain("👋")))
+                  : testCase === "emoji-wrapper-lost" && id === 6
+                    ? paragraph(plain("👋"))
+                    : testCase === "first-content-failed" && id === 1 && kind === "message"
+                      ? paragraph(plain("Download"))
+                      : block,
           paragraph(plain(marker)),
           ...(testCase === "oversized-tree" && id === 1 && kind === "message"
             ? [paragraph(plain("x".repeat(20_000)))]
@@ -378,11 +385,13 @@ export async function assertTelegramRichObservationFlow(
               args: {
                 message?: string;
                 action?: string;
+                conversationReadOrigin?: string;
                 params?: { messageId?: number; content?: string };
               },
             ) => {
               if (method === "message.action") {
                 assert.equal(args.action, "edit");
+                assert.equal(args.conversationReadOrigin, "direct-operator");
                 assert.equal(args.params?.messageId, 1);
                 edits += 1;
                 const firstMarker = [...markers][0];
@@ -491,7 +500,7 @@ export async function assertTelegramRichObservationFlow(
           : testCase === "missing-content-type" ||
               testCase === "reactivated-literal" ||
               testCase === "lost-literal-ancestor" ||
-              testCase === "emoji-degraded" ||
+              testCase === "emoji-wrapper-lost" ||
               testCase === "first-content-failed" ||
               flattenedIndex >= 0
             ? /Native rich composition failed/
@@ -512,12 +521,12 @@ export async function assertTelegramRichObservationFlow(
       "utf8",
     );
     const evidence = JSON.parse(exported);
-    if (testCase === "emoji-degraded" || testCase === "first-content-failed") {
+    if (testCase === "emoji-wrapper-lost" || testCase === "first-content-failed") {
       assert.equal(sends, 11, "content failure must not skip independent sends");
       assert.equal(edits, 1, "content failure must not skip the original-message edit");
       assert.equal(evidence.edit.verified, true);
       assert.equal(evidence.cases.length, 10);
-      const failedLabel = testCase === "emoji-degraded" ? "message-6" : "message-1";
+      const failedLabel = testCase === "emoji-wrapper-lost" ? "message-6" : "message-1";
       assert.deepEqual(
         evidence.failures.map((failure: { label: string }) => failure.label),
         [failedLabel],
@@ -539,8 +548,8 @@ export async function assertTelegramRichObservationFlow(
           full: true,
           matchesPattern: false,
           block:
-            testCase === "emoji-degraded"
-              ? paragraph(url(plain("👋")))
+            testCase === "emoji-wrapper-lost"
+              ? paragraph(plain("👋"))
               : paragraph(plain("Download")),
         },
       );
@@ -555,7 +564,7 @@ export async function assertTelegramRichObservationFlow(
       [
         "reactivated-literal",
         "lost-literal-ancestor",
-        "emoji-degraded",
+        "emoji-wrapper-lost",
         "first-content-failed",
       ].includes(testCase);
     assert.equal(evidence.edit.verified, !rejects || contentFailure);
